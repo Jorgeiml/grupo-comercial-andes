@@ -182,6 +182,33 @@ def decide(proposal_id: str, identity: Identity, decision: Decision, presented_h
     return _run(identity, f"decide:{decision}", proposal_id, work)
 
 
+def mark_executed(proposal_id: str, identity: Identity, *, order_number: str, erp_adapter: str, detail: str) -> Proposal:
+    def work(conn):
+        proposal = _fetch(conn, proposal_id)
+        _set_status(conn, proposal, Status.EJECUTADA, erp_order_number=order_number, erp_adapter=erp_adapter)
+        audit(conn, actor=identity.user, role=identity.role, action="execute", proposal_id=proposal_id,
+              content_hash=proposal.content_hash, result="executed", detail=f"{erp_adapter} {order_number}: {detail}")
+        return _fetch(conn, proposal_id)
+
+    return _run(identity, "execute", proposal_id, work)
+
+
+def mark_blocked(proposal_id: str, identity: Identity, reasons: list[str]) -> Proposal:
+    def work(conn):
+        proposal = _fetch(conn, proposal_id)
+        _set_status(conn, proposal, Status.BLOQUEADA)
+        audit(conn, actor=identity.user, role=identity.role, action="execute", proposal_id=proposal_id,
+              content_hash=proposal.content_hash, result="blocked", detail=" | ".join(reasons))
+        return _fetch(conn, proposal_id)
+
+    return _run(identity, "execute", proposal_id, work)
+
+
+def record_event(identity: Identity, action: str, result: str, proposal_id: str | None = None, detail: str | None = None) -> None:
+    with connect() as conn:
+        audit(conn, actor=identity.user, role=identity.role, action=action, proposal_id=proposal_id, result=result, detail=detail)
+
+
 def valid_approval(proposal: Proposal) -> dict | None:
     """The approval that authorizes execution: an 'aprobar' bound to the proposal's current hash."""
     with connect() as conn:
