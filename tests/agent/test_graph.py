@@ -130,3 +130,26 @@ def test_erp_outage_stops_safely(erp_client, tmp_path, script):
     result = agent.send("t1", "300 fardos", EJECUTIVO)
     assert result["response_kind"] == "stopped"
     assert "no doy una respuesta sin verificar" in result["response"]
+
+
+def test_follow_up_question_uses_the_last_order_of_the_conversation(agent, script):
+    script["classify"] = classified("special_order")
+    script["extract_order"] = order(customer="CL-002", sku="HG-001", quantity=40, warehouse="UIO")
+    script["explain_order"] = DraftAnswer(answer="Hay 25 disponibles en Quito.")
+    agent.send("t1", "40 licuadoras para Quito", EJECUTIVO)
+
+    seen = {}
+
+    def draft(messages):
+        seen["prompt"] = messages[-1][1]
+        return DraftAnswer(answer=f"Pediste 40 y hay 25 en Quito [{CHUNKS[1].citation}].")
+
+    script["classify"] = classified("policy_question")
+    script["plan"] = QueryPlan(subqueries=["falta de stock"], needs_order_data=False)
+    script["check_answerable"] = Answerability(answerable=True, supporting_citations=[CHUNKS[1].citation], missing=None)
+    script["draft_answer"] = draft
+    result = agent.send("t1", "¿Y por qué no se puede?", EJECUTIVO)
+
+    assert "DATOS DEL ÚLTIMO PEDIDO" in seen["prompt"]
+    assert "solicitado 40, disponible 25" in seen["prompt"]
+    assert result["response_kind"] == "answer"  # 40 and 25 are verified against the order data

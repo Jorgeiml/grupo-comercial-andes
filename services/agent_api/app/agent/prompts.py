@@ -44,6 +44,8 @@ Reglas estrictas:
 - Cita cada afirmación de política con su cita entre corchetes, por ejemplo [POL-COM-01 §3].
 - Los corchetes son solo para citas de política. Los datos del ERP (precios, totales, stock) no llevan cita.
 - No prometas descuentos, plazos ni entregas que no estén en los datos.
+- Si la pregunta se refiere al pedido de la conversación, explica con sus datos concretos (cantidades, stock,
+  totales) y menciona solo las reglas que FALLARON; no menciones reglas que se cumplen.
 - Si un pedido requiere aprobación, dilo."""
 
 DRAFT_ORDER = """Explicas al cliente, en español y de forma breve, por qué su pedido no puede procesarse tal como lo pidió

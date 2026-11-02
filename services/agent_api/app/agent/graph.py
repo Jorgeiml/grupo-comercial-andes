@@ -45,6 +45,7 @@ class AgentState(TypedDict, total=False):
     chunks: list[dict]
     answerable: bool
     answerability: dict | None
+    last_order_facts: str  # kept across turns (not in PER_TURN_DEFAULTS) for follow-up questions
     draft_answer: str | None
     facts: str
     evaluation: dict | None
@@ -162,7 +163,11 @@ def build_graph(deps: Dependencies, checkpointer=None):
         tracker = _tracker(state)
         result = extract("small", QueryPlan, [("system", prompts.PLAN), ("human", _user_block(state))], tracker, "plan")
         subqueries = list(dict.fromkeys([state["message"], *result.subqueries]))[:5]
-        return {"subqueries": subqueries, "needs_order_data": result.needs_order_data, "usage": _usage(tracker, state)}
+        update = {"subqueries": subqueries, "needs_order_data": result.needs_order_data, "usage": _usage(tracker, state)}
+        if state.get("last_order_facts"):
+            # A follow-up ("¿por qué no se puede?") is answered with the verified data of the order in this conversation
+            update["facts"] = "DATOS DEL ÚLTIMO PEDIDO DE ESTA CONVERSACIÓN (verificados):\n" + state["last_order_facts"]
+        return update
 
     def retrieve(state: AgentState) -> dict:
         tracker = _tracker(state)
@@ -218,10 +223,13 @@ def build_graph(deps: Dependencies, checkpointer=None):
         tracker = _tracker(state)
         draft, missing = _extract_order(state, tracker)
         if draft is None:
+            if state.get("facts"):  # keep the verified data of the conversation's last order
+                return {"usage": _usage(tracker, state)}
             facts = "DATOS DEL PEDIDO: no se pudo cotizar con certeza. Falta: " + "; ".join(missing)
             return {"facts": facts, "usage": _usage(tracker, state)}
         evaluation = evaluate(draft, deps.read_erp())
-        return {"facts": evaluation_text(evaluation), "evaluation": as_json(evaluation), "usage": _usage(tracker, state)}
+        facts = evaluation_text(evaluation)
+        return {"facts": facts, "last_order_facts": facts, "evaluation": as_json(evaluation), "usage": _usage(tracker, state)}
 
     def draft_policy(state: AgentState) -> dict:
         tracker = _tracker(state)
@@ -250,7 +258,7 @@ def build_graph(deps: Dependencies, checkpointer=None):
         evaluation = evaluate(draft, erp)
         alternatives = suggest(evaluation, erp) if not evaluation.ok else []
         facts = evaluation_text(evaluation) + ("\n\n" + alternatives_text(alternatives) if not evaluation.ok else "")
-        return {"evaluation": as_json(evaluation), "alternatives": [as_json(a) for a in alternatives], "facts": facts}
+        return {"evaluation": as_json(evaluation), "alternatives": [as_json(a) for a in alternatives], "facts": facts, "last_order_facts": facts}
 
     def explain(state: AgentState) -> dict:
         tracker = _tracker(state)
