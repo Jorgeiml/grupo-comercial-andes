@@ -36,7 +36,8 @@ class RetrievalResult:
 
 
 def search(query: str, k: int = 4) -> RetrievalResult:
-    min_score = float(os.getenv("RAG_MIN_SCORE", "0.5"))  # provisional: calibrated with real scores
+    # First layer only: similarity says "same topic", not "contains the answer" (see docs/decisiones.md)
+    min_score = float(os.getenv("RAG_MIN_SCORE", "0.40"))
     [vector], tokens = embed([query])
     result = collection().query(query_embeddings=[vector], n_results=k, include=["documents", "metadatas", "distances"])
     chunks = [

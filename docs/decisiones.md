@@ -1,0 +1,48 @@
+# Registro de decisiones técnicas
+
+Decisiones tomadas durante la construcción, con su motivo. Complementa el CLAUDE.md.
+
+## Día 1
+
+| # | Decisión | Motivo |
+|---|---|---|
+| 1 | Los servicios corren en `python:3.12-slim` (Docker), no en el Python local | Demo reproducible e independiente de la máquina; 3.12 tiene soporte completo de todas las librerías |
+| 2 | 18 SKUs: los 15 del caso + 3 sustitutos homologados de marca "Cumbre" | Un sustituto debe ser un producto equivalente; con un solo producto por tipo no hay sustituto posible |
+| 3 | Precios sin IVA; el umbral de aprobación de USD 5.000 se aplica al total con descuento | El IVA no responde a los dolores del caso; el total con descuento es el monto real comprometido |
+| 4 | Dinero en centavos enteros (ERP) y `Decimal` (agente), nunca `float` | Cifras exactas, sin errores de redondeo |
+| 5 | Tres credenciales de servicio en el ERP: `read`, `write`, `admin` | El agente solo recibe `read`: el ERP impone que no pueda escribir |
+| 6 | Idempotencia con un campo real del ERP (`CustomersOrderReference` / `PurchaseOrderByCustomer`) + restricción UNIQUE | Aprobar dos veces nunca duplica, aunque falle otro control; misma referencia con distinto contenido → 409 |
+| 7 | El ERP revalida todas las reglas al escribir, en una transacción | Defensa en profundidad: ninguna escritura inválida llega a la base aunque fallen los controles previos |
+| 8 | Registro de escrituras en el ERP, separado de la auditoría de negocio | Evidencia técnica de cada intento (incluidos los rechazados); quién aprobó vive en agent-api |
+| 9 | Adaptadores en el cliente (agent-api); el mock expone ambos estilos sobre una sola base | Igual que en producción: cambiar de ERP es cambiar el adaptador, no el sistema |
+| 10 | Fragmentos RAG por sección numerada; la cita sale de los metadatos | Citas exactas y verificables; ninguna regla queda partida |
+
+## Calibración del umbral RAG (2026-11-02)
+
+Puntaje (similitud coseno) del mejor fragmento, con `text-embedding-3-small`:
+
+| Grupo | Consulta | Puntaje |
+|---|---|---|
+| Con respuesta | Plazo de pago clientes Oro | 0,666 |
+| Con respuesta | ¿Qué pasa si no hay stock? | 0,595 |
+| Con respuesta | Consulta compleja La Pradera | 0,575 |
+| Con respuesta | Descuento por 500 cajas | 0,568 |
+| Con respuesta | Garantía de una laptop | 0,545 |
+| Con respuesta | Devolver una licuadora sin uso | 0,420 |
+| Sin respuesta | Envío a Galápagos | 0,468 |
+| Sin respuesta | Criptomonedas | 0,420 |
+| Sin respuesta | Horario de atención | 0,416 |
+| Sin respuesta | Programa de puntos | 0,379 |
+| Sin respuesta | Gerente general | 0,273 |
+
+**Hallazgo:** los grupos se superponen. La similitud mide "habla del tema", no "contiene la respuesta" (Galápagos se parece a la tabla de entregas).
+
+**Decisión:** control en dos capas.
+1. Umbral `RAG_MIN_SCORE=0.40`: descarta lo claramente ajeno sin gastar en el LLM.
+2. Verificación de respuesta con `MODEL_SMALL` (salida estructurada): ¿los fragmentos recuperados contienen la respuesta? ¿qué citas la respaldan? Si no → "no tengo esa información" y escalamiento. Una cita que no esté entre los fragmentos recuperados bloquea la respuesta.
+
+## Pendientes para el día 2
+
+- Implementar la verificación de respuesta (capa 2 del RAG).
+- Descomponer las consultas complejas en subconsultas antes de buscar: en la consulta de La Pradera, los 3 mejores fragmentos fueron de entregas y no apareció la política de descuentos.
+- Rechazos del ERP que ocurren antes de `create_order` (p. ej. cantidad decimal en SAP) no quedan en el registro de escrituras; evaluar si registrarlos.
