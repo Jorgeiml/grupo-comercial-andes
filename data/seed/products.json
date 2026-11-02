@@ -1,0 +1,23 @@
+[
+  { "sku": "CM-001", "name": "Arroz Andes 10x2 kg", "category": "Consumo masivo", "unit": "fardo", "list_price": 18.50, "status": "active", "substitute_sku": null, "stock": { "UIO": 800, "GYE": 1200 } },
+  { "sku": "CM-002", "name": "Aceite Andes 12x1 L", "category": "Consumo masivo", "unit": "caja", "list_price": 28.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 400, "GYE": 350 } },
+  { "sku": "CM-003", "name": "Azúcar Andes 10x2 kg", "category": "Consumo masivo", "unit": "fardo", "list_price": 16.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 600, "GYE": 900 } },
+  { "sku": "CM-004", "name": "Detergente Andes 12x1 kg", "category": "Consumo masivo", "unit": "caja", "list_price": 32.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 50, "GYE": 300 } },
+  { "sku": "CM-005", "name": "Papel higiénico Andes 48 rollos", "category": "Consumo masivo", "unit": "fardo", "list_price": 22.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 500, "GYE": 500 } },
+
+  { "sku": "HG-001", "name": "Licuadora 1,5 L", "category": "Hogar", "unit": "unidad", "list_price": 45.00, "status": "active", "substitute_sku": "HG-101", "stock": { "UIO": 25, "GYE": 40 } },
+  { "sku": "HG-002", "name": "Olla arrocera 1,8 L", "category": "Hogar", "unit": "unidad", "list_price": 38.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 30, "GYE": 30 } },
+  { "sku": "HG-003", "name": "Ventilador de pie", "category": "Hogar", "unit": "unidad", "list_price": 35.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 60, "GYE": 80 } },
+  { "sku": "HG-004", "name": "Juego de ollas 7 piezas", "category": "Hogar", "unit": "unidad", "list_price": 85.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 20, "GYE": 15 } },
+  { "sku": "HG-005", "name": "Plancha a vapor", "category": "Hogar", "unit": "unidad", "list_price": 29.00, "status": "discontinued", "substitute_sku": "HG-105", "stock": { "UIO": 12, "GYE": 0 } },
+
+  { "sku": "TE-001", "name": "Laptop 14\" Core i5", "category": "Tecnología", "unit": "unidad", "list_price": 780.00, "status": "active", "substitute_sku": "TE-101", "stock": { "UIO": 8, "GYE": 5 } },
+  { "sku": "TE-002", "name": "Impresora multifunción", "category": "Tecnología", "unit": "unidad", "list_price": 220.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 15, "GYE": 10 } },
+  { "sku": "TE-003", "name": "Monitor 24\"", "category": "Tecnología", "unit": "unidad", "list_price": 165.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 25, "GYE": 20 } },
+  { "sku": "TE-004", "name": "Tóner negro", "category": "Tecnología", "unit": "unidad", "list_price": 65.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 100, "GYE": 80 } },
+  { "sku": "TE-005", "name": "Disco externo 1 TB", "category": "Tecnología", "unit": "unidad", "list_price": 70.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 40, "GYE": 35 } },
+
+  { "sku": "HG-101", "name": "Licuadora Cumbre 1,5 L", "category": "Hogar", "unit": "unidad", "list_price": 43.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 30, "GYE": 20 } },
+  { "sku": "HG-105", "name": "Plancha Cumbre a vapor", "category": "Hogar", "unit": "unidad", "list_price": 31.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 25, "GYE": 25 } },
+  { "sku": "TE-101", "name": "Laptop Cumbre 14\" Ryzen 5", "category": "Tecnología", "unit": "unidad", "list_price": 760.00, "status": "active", "substitute_sku": null, "stock": { "UIO": 15, "GYE": 10 } }
+]

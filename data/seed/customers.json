@@ -1,0 +1,38 @@
+[
+  {
+    "code": "CL-001",
+    "name": "Supermercados La Pradera",
+    "type": "Cadena",
+    "tier": "Oro",
+    "max_discount_pct": 12,
+    "credit_limit": 80000.00,
+    "credit_used": 20000.00
+  },
+  {
+    "code": "CL-002",
+    "name": "Comercial Don Lucho",
+    "type": "Minorista",
+    "tier": "Plata",
+    "max_discount_pct": 6,
+    "credit_limit": 15000.00,
+    "credit_used": 5000.00
+  },
+  {
+    "code": "CL-003",
+    "name": "Colegio Los Andes",
+    "type": "Institución",
+    "tier": "Bronce",
+    "max_discount_pct": 3,
+    "credit_limit": 5000.00,
+    "credit_used": 1000.00
+  },
+  {
+    "code": "CL-004",
+    "name": "Ferretería El Sol",
+    "type": "Minorista",
+    "tier": "Plata",
+    "max_discount_pct": 6,
+    "credit_limit": 10000.00,
+    "credit_used": 9600.00
+  }
+]
