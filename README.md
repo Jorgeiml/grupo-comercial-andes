@@ -19,6 +19,10 @@ Caso práctico SEIDOR (IA Engineer). Asistente para **consultas complejas** y **
 3. Indexa las políticas (una sola vez, o cuando cambien): `docker compose run --rm agent-api python -m app.rag.ingest`
 4. Para dejar la demo en cero: `docker compose down -v` (borra la base del ERP y el índice).
 
+## Pruebas
+
+`docker compose run --rm tests` — corre la suite pytest en un contenedor, con el ERP simulado en memoria (no necesita secretos ni servicios levantados).
+
 ## Estructura
 
 - `data/seed/` — datos ficticios de productos y clientes.

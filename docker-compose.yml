@@ -57,6 +57,18 @@ services:
 
   # ui (Streamlit) is added on day 3
 
+  # Test runner: docker compose run --rm tests
+  # Reuses the agent-api image (it already has fastapi + httpx for the in-process mock ERP). No secrets needed.
+  tests:
+    profiles: ["test"]
+    build: ./services/agent_api
+    working_dir: /repo
+    volumes:
+      - ./:/repo:ro
+    command: >
+      sh -c "pip install -q --root-user-action=ignore --disable-pip-version-check -r services/agent_api/requirements-dev.txt
+      && pytest -q -p no:cacheprovider tests"
+
 volumes:
   erp-data:
   agent-data:

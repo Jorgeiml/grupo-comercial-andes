@@ -27,12 +27,10 @@ def to_decimal(value) -> Decimal:
 
 
 class HttpErp:
-    def __init__(self, base_url: str, token: str, timeout_seconds: float = 10.0):
-        self._client = httpx.Client(
-            base_url=base_url,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=timeout_seconds,
-        )
+    def __init__(self, base_url: str, token: str, timeout_seconds: float = 10.0, http_client: httpx.Client | None = None):
+        # http_client lets tests plug in an in-process client; production builds its own
+        self._client = http_client or httpx.Client(base_url=base_url, timeout=timeout_seconds)
+        self._client.headers["Authorization"] = f"Bearer {token}"
 
     def _get(self, path: str, filter_: str) -> dict:
         try:

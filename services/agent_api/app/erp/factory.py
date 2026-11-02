@@ -9,7 +9,7 @@ from .sap import SapErp
 ADAPTERS = {"dynamics": DynamicsErp, "sap": SapErp}
 
 
-def create_erp(token: str, adapter: str | None = None, base_url: str | None = None) -> ErpPort:
+def create_erp(token: str, adapter: str | None = None, base_url: str | None = None, http_client=None) -> ErpPort:
     name = adapter or os.getenv("ERP_ADAPTER", "dynamics")
     if name not in ADAPTERS:
         raise ValueError(f"Unknown ERP_ADAPTER '{name}'. Expected one of: {', '.join(ADAPTERS)}")
@@ -17,6 +17,7 @@ def create_erp(token: str, adapter: str | None = None, base_url: str | None = No
         base_url=base_url or os.getenv("ERP_BASE_URL", "http://mock-erp:8001"),
         token=token,
         timeout_seconds=float(os.getenv("ERP_TIMEOUT_SECONDS", "10")),
+        http_client=http_client,
     )
 
 
