@@ -83,6 +83,13 @@ El CLAUDE.md exige temperatura 0 (respuestas repetibles para la suite de evaluac
 
 Costos medidos (LLM real): consulta compleja USD 0,0028 · Galápagos USD 0,0005 · pedido especial USD 0,0004 · falta de stock con alternativas USD 0,0019.
 
+### Escenarios de la demo (`scripts/demo_scenarios.py`)
+
+Corrida completa con LLM real: 11/11 como se esperaba, USD 0,0071 en total. Latencias: 1–4 s en pedidos y ataques; ~11 s en la consulta compleja (5 llamadas al LLM + 5 búsquedas).
+
+- **Escenario 4:** aprobar dispara la ejecución en la misma llamada, así que en la demo el stock se cambia entre la preparación de la propuesta y la aprobación; la revalidación al ejecutar bloquea. El caso estricto "después de aprobar" está cubierto por `tests/execution` (aprobación y ejecución separadas).
+- **Verificador:** cualquier texto entre corchetes que no sea una cita de política se bloquea (el modelo llegó a escribir `[DATOS VERIFICADOS]`).
+
 ## Pendientes para el día 2
 
 - Implementar la verificación de respuesta (capa 2 del RAG).

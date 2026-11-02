@@ -45,6 +45,13 @@ def test_subsection_citation_is_backed_by_its_section():
     assert verify(answer, allowed_texts=[CHUNK], retrieved_citations=["POL-COM-01 §2"], require_citation=True).ok
 
 
+def test_invented_source_in_brackets_is_blocked():
+    answer = "Aplica 5 % [POL-COM-01 §2]. Requiere aprobación [DATOS VERIFICADOS]."
+    result = verify(answer, allowed_texts=[CHUNK], retrieved_citations=["POL-COM-01 §2"], require_citation=True)
+    assert not result.ok
+    assert "[DATOS VERIFICADOS]" in result.issues[0]
+
+
 def test_policy_answer_without_citation_is_blocked():
     result = verify("Aplica 5 %.", allowed_texts=[CHUNK], retrieved_citations=["POL-COM-01 §2"], require_citation=True)
     assert not result.ok

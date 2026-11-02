@@ -38,6 +38,7 @@ Reglas estrictas:
 - Usa SOLO los fragmentos de política y los DATOS VERIFICADOS que se entregan. No agregues cifras propias.
 - Copia los montos, porcentajes y cantidades exactamente como aparecen en DATOS VERIFICADOS.
 - Cita cada afirmación de política con su cita entre corchetes, por ejemplo [POL-COM-01 §3].
+- Los corchetes son solo para citas de política. Los datos del ERP (precios, totales, stock) no llevan cita.
 - No prometas descuentos, plazos ni entregas que no estén en los datos.
 - Si un pedido requiere aprobación, dilo."""
 

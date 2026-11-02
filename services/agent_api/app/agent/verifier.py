@@ -62,5 +62,9 @@ def verify(answer: str, *, allowed_texts: list[str], retrieved_citations: list[s
             issues.append(f"Cita que no corresponde a los fragmentos recuperados: {citation}")
     if require_citation and not found:
         issues.append("La respuesta sobre políticas no incluye citas")
+    # Anything in brackets must be a real policy citation: invented sources like [DATOS VERIFICADOS] are blocked
+    for bracket in re.findall(r"\[([^\]]*)\]", answer):
+        if not CITATION.fullmatch(bracket.strip()):
+            issues.append(f"Referencia que no es una cita de política: [{bracket}]")
 
     return Verification(ok=not issues, issues=issues, citations=sorted(set(found)))
