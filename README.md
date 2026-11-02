@@ -14,8 +14,10 @@ Caso práctico SEIDOR (IA Engineer). Asistente para **consultas complejas** y **
 
 ## Puesta en marcha
 
-1. Copia `.env.example` a `.env` y completa los valores.
-2. `docker compose up --build` _(disponible a partir del paso de Docker Compose)_.
+1. Copia `.env.example` a `.env`, pega tu `OPENAI_API_KEY` y completa los tokens (`ERP_*_TOKEN`, `JWT_SECRET`) con valores aleatorios.
+2. Levanta los servicios: `docker compose up -d --build`
+3. Indexa las políticas (una sola vez, o cuando cambien): `docker compose run --rm agent-api python -m app.rag.ingest`
+4. Para dejar la demo en cero: `docker compose down -v` (borra la base del ERP y el índice).
 
 ## Estructura
 

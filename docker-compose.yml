@@ -1,0 +1,62 @@
+# Values come from .env. Each service receives only the variables it needs.
+name: grupo-comercial-andes
+
+services:
+  mock-erp:
+    build: ./services/mock_erp
+    environment:
+      ERP_READ_TOKEN: ${ERP_READ_TOKEN:?missing in .env}
+      ERP_WRITE_TOKEN: ${ERP_WRITE_TOKEN:?missing in .env}
+      ERP_ADMIN_TOKEN: ${ERP_ADMIN_TOKEN:?missing in .env}
+      ERP_DB_PATH: /data/erp.db
+      ERP_SEED_DIR: /seed
+    volumes:
+      - erp-data:/data
+      - ./data/seed:/seed:ro
+    # Exposed to the host only for the demo; in production the ERP is not reachable from outside
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  agent-api:
+    build: ./services/agent_api
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?missing in .env}
+      MODEL_SMALL: ${MODEL_SMALL}
+      MODEL_MAIN: ${MODEL_MAIN}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      MAX_AGENT_ITERATIONS: ${MAX_AGENT_ITERATIONS:-8}
+      MAX_TOKENS_PER_REQUEST: ${MAX_TOKENS_PER_REQUEST:-4000}
+      CHROMA_PATH: /data/chroma
+      POLICIES_DIR: /policies
+      RAG_MIN_SCORE: ${RAG_MIN_SCORE:-0.40}
+      ERP_ADAPTER: ${ERP_ADAPTER:-dynamics}
+      ERP_BASE_URL: http://mock-erp:8001
+      ERP_TIMEOUT_SECONDS: ${ERP_TIMEOUT_SECONDS:-10}
+      # read: the agent's tools · write: only the execution service. No admin token here.
+      ERP_READ_TOKEN: ${ERP_READ_TOKEN:?missing in .env}
+      ERP_WRITE_TOKEN: ${ERP_WRITE_TOKEN:?missing in .env}
+      JWT_SECRET: ${JWT_SECRET:?missing in .env}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+    volumes:
+      - agent-data:/data
+      - ./data/policies:/policies:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      mock-erp:
+        condition: service_healthy
+
+  # ui (Streamlit) is added on day 3
+
+volumes:
+  erp-data:
+  agent-data:
