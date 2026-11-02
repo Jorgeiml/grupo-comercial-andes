@@ -11,7 +11,16 @@ from pydantic import BaseModel
 
 from ..erp.port import ErpPort, Product
 from .models import ApprovalLevel, OrderDraft, PricedLine, ProposalContent, RuleResult
-from .pricing import APPROVAL_CITATION, DISCOUNT_CITATION, approval_level, line_amount, money, policy_discount
+from .pricing import (
+    APPROVAL_CITATION,
+    DISCOUNT_CITATION,
+    PAYMENT_CITATION,
+    PAYMENT_TERM_DAYS,
+    approval_level,
+    line_amount,
+    money,
+    policy_discount,
+)
 
 
 def usd(amount: Decimal) -> str:
@@ -50,7 +59,11 @@ class Evaluation(BaseModel):
 
     def content(self) -> ProposalContent:
         return ProposalContent(
-            customer_code=self.draft.customer_code, lines=self.lines, total=self.total, approval_level=self.approval_level
+            customer_code=self.draft.customer_code,
+            lines=self.lines,
+            total=self.total,
+            approval_level=self.approval_level,
+            payment_days=self.draft.requested_payment_days,
         )
 
 
@@ -161,6 +174,19 @@ def evaluate(draft: OrderDraft, erp: ErpPort, quoted_prices: dict[str, Decimal] 
     else:
         reason = "Descuento según política: " + (", ".join(f"{l.sku} {pct(l.discount_pct)}" for l in priced) or "sin líneas")
     rules.append(RuleResult(rule="DISCOUNT_WITHIN_TIER", ok=not over, reason=reason, citation=DISCOUNT_CITATION))
+
+    # Payment term does not exceed the tier maximum
+    max_days = PAYMENT_TERM_DAYS.get(tier)
+    days = draft.requested_payment_days
+    if max_days is None:
+        term_ok, reason = False, "No se puede verificar el plazo de pago: nivel de cliente desconocido"
+    elif days is None:
+        term_ok, reason = True, f"Plazo estándar del nivel {tier}: hasta {max_days} días"
+    elif 0 < days <= max_days:
+        term_ok, reason = True, f"Pago a {days} días: permitido para el nivel {tier} (máximo {max_days})"
+    else:
+        term_ok, reason = False, f"Se solicitó pago a {days} días; el máximo para el nivel {tier} es {max_days} días"
+    rules.append(RuleResult(rule="PAYMENT_TERM_WITHIN_TIER", ok=term_ok, reason=reason, citation=PAYMENT_CITATION))
 
     # 6. Order fits the available credit
     if credit is None:

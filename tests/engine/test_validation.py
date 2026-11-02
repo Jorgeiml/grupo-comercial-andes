@@ -9,15 +9,16 @@ from app.engine.validation import evaluate
 
 ALL_RULES = [
     "CUSTOMER_EXISTS", "PRODUCT_ACTIVE", "QUANTITY_VALID", "STOCK_AVAILABLE",
-    "PRICE_MATCHES_ERP", "DISCOUNT_WITHIN_TIER", "CREDIT_AVAILABLE", "APPROVAL_LEVEL",
+    "PRICE_MATCHES_ERP", "DISCOUNT_WITHIN_TIER", "PAYMENT_TERM_WITHIN_TIER", "CREDIT_AVAILABLE", "APPROVAL_LEVEL",
 ]
 
 
-def draft(customer, *lines, discount=None):
+def draft(customer, *lines, discount=None, days=None):
     return OrderDraft(
         customer_code=customer,
         lines=[RequestedLine(sku=sku, quantity=qty, warehouse=wh) for sku, qty, wh in lines],
         requested_discount_pct=Decimal(discount) if discount is not None else None,
+        requested_payment_days=days,
     )
 
 
@@ -72,6 +73,27 @@ def test_requested_discount_above_policy_but_below_tier_max_is_rejected(read_erp
     # Oro max is 12 %, but for 300 units the policy gives 9 %: 12 % is not allowed (POL-COM-01 §3.2)
     result = evaluate(draft("CL-001", ("CM-001", 300, "GYE"), discount="12"), read_erp)
     assert failed(result) == ["DISCOUNT_WITHIN_TIER"]
+
+
+@pytest.mark.parametrize(
+    ("customer", "days", "ok"),
+    [
+        ("CL-001", 60, True),  # Oro: up to 60 — the demo's complex question
+        ("CL-002", 30, True),  # Plata: up to 30
+        ("CL-002", 60, False),
+        ("CL-003", 30, False),  # Bronce: up to 15
+        ("CL-002", 0, False),
+        ("CL-002", None, True),  # not requested: standard term of the tier
+    ],
+)
+def test_payment_term_is_limited_by_tier(read_erp, customer, days, ok):
+    result = evaluate(draft(customer, ("CM-003", 10, "UIO"), days=days), read_erp)
+    assert ("PAYMENT_TERM_WITHIN_TIER" not in failed(result)) is ok
+
+
+def test_payment_term_is_part_of_the_approved_content(read_erp):
+    order = ("CM-001", 300, "GYE")
+    assert evaluate(draft("CL-001", order, days=30), read_erp).content().hash != evaluate(draft("CL-001", order, days=60), read_erp).content().hash
 
 
 def test_changed_list_price_is_detected(read_erp):

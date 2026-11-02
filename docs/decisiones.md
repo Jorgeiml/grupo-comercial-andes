@@ -68,6 +68,12 @@ El CLAUDE.md exige temperatura 0 (respuestas repetibles para la suite de evaluac
 
 `langgraph==1.2.19`, `langgraph-checkpoint-sqlite==3.1.3`, `langchain-core==1.7.3` (no 1.7.4: publicada el mismo día), `langchain-openai==1.7.3`, `pyjwt==2.15.1`. Verificado: `interrupt()` + `Command(resume=...)` con `SqliteSaver` funciona con estas versiones.
 
+### Motor de validación
+
+- Además de las 7 reglas del CLAUDE.md: `CUSTOMER_EXISTS` (condición para verificar crédito y descuento) y `PAYMENT_TERM_WITHIN_TIER` (POL-FIN-02 §1.1; aprobada por el usuario). El plazo se valida y forma parte del hash de la propuesta, pero no se escribe en el ERP (el mock no tiene ese campo).
+- El descuento lo calcula Python (volumen + nivel, con tope en el máximo del ERP). Un descuento solicitado mayor al de la política se rechaza aunque esté bajo el máximo del nivel.
+- Todas las reglas corren siempre; las alternativas (parcial, sustituto, combinada) se revalidan completas.
+
 ## Pendientes para el día 2
 
 - Implementar la verificación de respuesta (capa 2 del RAG).

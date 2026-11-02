@@ -22,6 +22,8 @@ class OrderDraft(BaseModel):
     lines: list[RequestedLine]
     # Only set when the customer explicitly asked for a discount; it is checked, never applied as is
     requested_discount_pct: Decimal | None = None
+    # Only set when the customer asked for a payment term; validated against the tier (not sent to the ERP)
+    requested_payment_days: int | None = None
 
 
 class RuleResult(BaseModel):
@@ -50,6 +52,7 @@ class ProposalContent(BaseModel):
     lines: list[PricedLine] = Field(min_length=1)
     total: Decimal
     approval_level: ApprovalLevel
+    payment_days: int | None = None  # part of what is approved, so it is part of the hash
 
     @property
     def hash(self) -> str:

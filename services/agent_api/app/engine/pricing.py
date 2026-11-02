@@ -10,6 +10,9 @@ CENT = Decimal("0.01")
 VOLUME_TIERS = [(500, Decimal(8)), (250, Decimal(5)), (100, Decimal(3))]
 # POL-COM-01 §3.1 — additional discount by customer tier
 TIER_BONUS = {"Oro": Decimal(4), "Plata": Decimal(1), "Bronce": Decimal(0)}
+# POL-FIN-02 §1.1 — maximum payment term in days, by customer tier
+PAYMENT_TERM_DAYS = {"Oro": 60, "Plata": 30, "Bronce": 15}
+PAYMENT_CITATION = "POL-FIN-02 §1.1"
 # POL-FIN-02 §4.1 — above this total the manager must approve
 SUPERVISOR_APPROVAL_LIMIT = Decimal("5000.00")
 
