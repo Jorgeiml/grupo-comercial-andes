@@ -16,7 +16,9 @@ from .pricing import (
     DISCOUNT_CITATION,
     PAYMENT_CITATION,
     PAYMENT_TERM_DAYS,
+    TIER_BONUS,
     approval_level,
+    volume_discount,
     line_amount,
     money,
     policy_discount,
@@ -39,6 +41,18 @@ class Shortage(BaseModel):
     available: int
 
 
+class LineEvidence(BaseModel):
+    """Where every figure of a line comes from (shown as evidence; not part of the approved content or its hash)."""
+
+    sku: str
+    erp_list_price: Decimal
+    erp_stock_available: int
+    volume_discount_pct: Decimal  # POL-COM-01 §2.1
+    tier_bonus_pct: Decimal  # POL-COM-01 §3.1
+    tier_max_pct: Decimal  # from the ERP, POL-COM-01 §1.2
+    applied_discount_pct: Decimal  # POL-COM-01 §3.2
+
+
 class Evaluation(BaseModel):
     draft: OrderDraft
     customer_name: str | None
@@ -48,6 +62,8 @@ class Evaluation(BaseModel):
     shortages: list[Shortage]
     total: Decimal
     approval_level: ApprovalLevel
+    evidence: list[LineEvidence] = []
+    credit_available: Decimal | None = None
 
     @property
     def ok(self) -> bool:
@@ -115,10 +131,11 @@ def evaluate(draft: OrderDraft, erp: ErpPort, quoted_prices: dict[str, Decimal] 
     needed: dict[tuple[str, str], int] = defaultdict(int)
     for line in valid_lines:
         needed[(line.sku, line.warehouse)] += line.quantity
-    shortages, stock_notes = [], []
+    shortages, stock_notes, available_by_key = [], [], {}
     for (sku, warehouse), quantity in needed.items():
         stock = erp.get_stock(sku, warehouse)
         available = stock.available if stock else 0
+        available_by_key[(sku, warehouse)] = available
         if quantity > available:
             shortages.append(Shortage(sku=sku, warehouse=warehouse, requested=quantity, available=available))
             where = f"en {warehouse}" if stock else f"(la bodega {warehouse} no existe)"
@@ -135,11 +152,18 @@ def evaluate(draft: OrderDraft, erp: ErpPort, quoted_prices: dict[str, Decimal] 
     # Pricing: list price from the ERP, discount from the policy, capped by the ERP tier maximum
     tier = customer.tier if customer else ""
     max_pct = customer.max_discount_pct if customer else Decimal(0)
-    priced = []
+    priced, evidence = [], []
     for line in valid_lines:
         product = sellable[line.sku]
         unit_price = money(product.list_price)
         discount = policy_discount(line.quantity, tier, max_pct)
+        evidence.append(
+            LineEvidence(
+                sku=line.sku, erp_list_price=unit_price, erp_stock_available=available_by_key.get((line.sku, line.warehouse), 0),
+                volume_discount_pct=volume_discount(line.quantity), tier_bonus_pct=TIER_BONUS.get(tier, Decimal(0)),
+                tier_max_pct=max_pct, applied_discount_pct=discount,
+            )
+        )
         priced.append(
             PricedLine(
                 sku=line.sku, name=product.name, warehouse=line.warehouse, quantity=line.quantity, unit=product.unit,
@@ -218,4 +242,6 @@ def evaluate(draft: OrderDraft, erp: ErpPort, quoted_prices: dict[str, Decimal] 
         shortages=shortages,
         total=total,
         approval_level=level,
+        evidence=evidence,
+        credit_available=credit.available if credit else None,
     )

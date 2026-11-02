@@ -18,6 +18,7 @@ class StepUsage:
     output_tokens: int
     cost_usd: Decimal | None  # None = price unknown
     latency_ms: int
+    cached: bool = False  # answered from the cache: no model call, no cost
 
     @property
     def total_tokens(self) -> int:
@@ -46,14 +47,14 @@ class UsageTracker:
         if self.max_tokens is not None and self.total_tokens >= self.max_tokens:
             raise TokenBudgetExceeded(f"Request used {self.total_tokens} tokens (limit {self.max_tokens})")
 
-    def record_chat(self, step: str, model: str, input_tokens: int, output_tokens: int, latency_ms: int) -> StepUsage:
-        usage = StepUsage(step, model, input_tokens, output_tokens, chat_cost_usd(model, input_tokens, output_tokens), latency_ms)
+    def record_chat(self, step: str, model: str, input_tokens: int, output_tokens: int, latency_ms: int, cached: bool = False) -> StepUsage:
+        usage = StepUsage(step, model, input_tokens, output_tokens, chat_cost_usd(model, input_tokens, output_tokens), latency_ms, cached)
         self.steps.append(usage)
         self.ensure_budget()
         return usage
 
-    def record_embedding(self, step: str, model: str, tokens: int, latency_ms: int) -> StepUsage:
-        usage = StepUsage(step, model, tokens, 0, embedding_cost_usd(model, tokens), latency_ms)
+    def record_embedding(self, step: str, model: str, tokens: int, latency_ms: int, cached: bool = False) -> StepUsage:
+        usage = StepUsage(step, model, tokens, 0, embedding_cost_usd(model, tokens), latency_ms, cached)
         self.steps.append(usage)
         self.ensure_budget()
         return usage
@@ -71,6 +72,7 @@ class UsageTracker:
                     "output_tokens": s.output_tokens,
                     "cost_usd": str(s.cost_usd) if s.cost_usd is not None else None,
                     "latency_ms": s.latency_ms,
+                    "cached": s.cached,
                 }
                 for s in self.steps
             ],

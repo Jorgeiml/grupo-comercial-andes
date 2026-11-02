@@ -169,7 +169,8 @@ def build_graph(deps: Dependencies, checkpointer=None):
         best: dict[str, dict] = {}
         for query in state["subqueries"]:
             result = deps.search(query)
-            tracker.record_embedding("retrieve", os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"), result.embedding_tokens, 0)
+            tracker.record_embedding("retrieve", os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"), result.embedding_tokens, 0,
+                                     cached=result.embedding_tokens == 0)
             for chunk in result.relevant:  # layer 1: similarity threshold
                 if chunk.citation not in best or chunk.score > best[chunk.citation]["score"]:
                     best[chunk.citation] = {"citation": chunk.citation, "text": chunk.text, "score": chunk.score}

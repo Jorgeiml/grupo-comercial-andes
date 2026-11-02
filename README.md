@@ -23,6 +23,10 @@ Caso práctico SEIDOR (IA Engineer). Asistente para **consultas complejas** y **
 
 `http://localhost:8501` (Streamlit): selector de rol, chat con carga de PDF, panel del pedido (reglas, alternativas, costo por paso), cola de aprobación, auditoría y panel de costos. Antes de un ensayo o de la presentación: `powershell -ExecutionPolicy Bypass -File scripts/reset_demo.ps1` (ERP con datos iniciales, cola y auditoría vacías; conserva el índice de políticas).
 
+## Guion de la presentación
+
+[docs/guion-demo.md](docs/guion-demo.md) (paso a paso, ≈ 6 min) y [docs/verificacion-demo.md](docs/verificacion-demo.md) (cada cifra recalculada a mano). Ensayo por consola: `python scripts/rehearse_demo.py`. Con `LLM_CACHE_ENABLED=true`, la misma historia se repite idéntica tras `scripts/reset_demo.ps1`, incluso sin internet.
+
 ## Escenarios de la demo
 
 Con los servicios levantados: `python scripts/demo_scenarios.py` — corre los 5 escenarios contra la API (incluido el cambio en vivo a SAP), imprime cada respuesta con su costo y termina con un resumen esperado vs. obtenido. Deja el ERP en cero al empezar.

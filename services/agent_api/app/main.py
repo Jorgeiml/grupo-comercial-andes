@@ -16,10 +16,13 @@ from .approvals.service import (
     Decision,
     Status,
     audit_trail,
+    create_proposal,
     decide,
     get_proposal,
     list_proposals,
 )
+from .engine.models import OrderDraft
+from .engine.validation import evaluate
 from .auth.tokens import AuthError, Identity, Role, decode_token, issue_token
 from .documents.pdf import PdfError, as_message, extract_text
 from .erp.port import ErpUnavailable
@@ -128,6 +131,8 @@ def _run_chat(agent: Agent, identity: Identity, message: str, thread_id: str | N
         "alternatives": state.get("alternatives", []),
         "verification": state.get("verification"),
         "citations": [c["citation"] for c in state.get("chunks", [])],
+        # Evidence: the exact policy fragments the answer was allowed to rely on
+        "sources": [{"citation": c["citation"], "score": c["score"], "text": c["text"]} for c in state.get("chunks", [])],
         "usage": result["usage"],
         "totals": totals,
         "trace_id": result.get("trace_id"),
@@ -146,6 +151,30 @@ def _with_customer_name(proposal, names: dict[str, str]) -> dict:
     data = proposal.model_dump(mode="json")
     data["customer_name"] = names.get(proposal.content.customer_code, proposal.content.customer_code)
     return data
+
+
+class AcceptAlternative(BaseModel):
+    thread_id: str = Field(min_length=1, max_length=64)
+    index: int = Field(ge=0, le=10)
+
+
+@app.post("/alternatives/accept")
+def accept_alternative(body: AcceptAlternative, request: Request, identity: Identity = Depends(require({"ejecutivo"}))):
+    """The executive turns one of the computed alternatives into a proposal. It is re-evaluated with fresh ERP data:
+    the alternative stored in the conversation is never trusted as is."""
+    agent: Agent = request.app.state.agent
+    state = agent.result(body.thread_id)["state"]
+    alternatives = state.get("alternatives") or []
+    if body.index >= len(alternatives):
+        raise HTTPException(status_code=404, detail="Esa alternativa no existe en la conversación")
+    draft = OrderDraft.model_validate(alternatives[body.index]["evaluation"]["draft"])
+    evaluation = evaluate(draft, agent.deps.read_erp())
+    try:
+        proposal = create_proposal(evaluation, identity, thread_id=body.thread_id)
+    except ApprovalError as e:
+        raise approval_http_error(e) from e
+    names = _customer_names(agent)
+    return {"proposal": _with_customer_name(proposal, names), "evaluation": evaluation.model_dump(mode="json")}
 
 
 @app.get("/proposals")

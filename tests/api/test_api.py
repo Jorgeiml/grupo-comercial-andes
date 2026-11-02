@@ -1,6 +1,7 @@
 """agent-api: authorization comes from the token, and an approval through the API ends in one ERP order."""
 
 import pytest
+from app.agent.schemas import DraftAnswer
 from app.auth.tokens import issue_token
 from app.main import app
 from fastapi.testclient import TestClient
@@ -107,6 +108,33 @@ def test_approved_proposal_is_executed_even_if_the_conversation_moved_on(api, sc
 
     assert response["execution"]["status"] == "executed"
     assert len(erp_db("SELECT * FROM sales_orders")) == 1
+
+
+def test_executive_turns_a_valid_alternative_into_a_proposal(api, script, erp_db):
+    script["classify"] = classified("special_order")
+    script["extract_order"] = order(customer="CL-002", sku="HG-001", quantity=40, warehouse="UIO")
+    script["explain_order"] = DraftAnswer(answer="Hay 25 disponibles en Quito.")
+    body = api.post("/chat", json={"message": "40 licuadoras"}, headers=EJECUTIVO).json()
+    combined = next(i for i, a in enumerate(body["alternatives"]) if a["kind"] == "partial_plus_substitute")
+
+    response = api.post("/alternatives/accept", json={"thread_id": body["thread_id"], "index": combined}, headers=EJECUTIVO)
+
+    assert response.status_code == 200
+    proposal = response.json()["proposal"]
+    assert proposal["status"] == "PENDIENTE"
+    assert [(l["sku"], l["quantity"]) for l in proposal["content"]["lines"]] == [("HG-001", 25), ("HG-101", 15)]
+    assert erp_db("SELECT * FROM sales_orders") == []  # still needs approval
+
+
+def test_invalid_alternative_cannot_become_a_proposal(api, script):
+    script["classify"] = classified("special_order")
+    script["extract_order"] = order(customer="CL-002", sku="HG-001", quantity=40, warehouse="UIO")
+    script["explain_order"] = DraftAnswer(answer="Hay 25 disponibles en Quito.")
+    body = api.post("/chat", json={"message": "40 licuadoras"}, headers=EJECUTIVO).json()
+    substitute_only = next(i for i, a in enumerate(body["alternatives"]) if a["kind"] == "substitute")  # 40 > 30 in stock
+    response = api.post("/alternatives/accept", json={"thread_id": body["thread_id"], "index": substitute_only}, headers=EJECUTIVO)
+    assert response.json()["detail"]["code"] == "INVALID_PROPOSAL"
+    assert api.post("/alternatives/accept", json={"thread_id": body["thread_id"], "index": 0}, headers=GERENTE).status_code == 403
 
 
 def test_costs_and_audit_are_for_approvers(api, script):

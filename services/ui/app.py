@@ -87,6 +87,15 @@ SHORT = {  # chart and table labels
 COLORS = {"green": "#1E7A4F", "red": "#B42318", "orange": "#B54708", "blue": "#0F5B78", "gray": "#5F6B73"}
 ECUADOR = timezone(timedelta(hours=-5))  # Ecuador has no daylight saving time
 
+# Pages shown per role (the API still enforces every permission)
+SECTION_TITLES = {"conversation": "Conversación", "approvals": "Aprobaciones", "audit": "Auditoría", "costs": "Costos"}
+VISIBLE = {
+    "cliente": ["conversation"],
+    "ejecutivo": ["conversation", "approvals"],
+    "supervisor": ["conversation", "approvals", "audit", "costs"],
+    "gerente": ["conversation", "approvals", "audit", "costs"],
+}
+
 
 # ---------- helpers ----------
 def usd(value, decimals: int = 2) -> str:
@@ -175,14 +184,16 @@ def get_token(role: str) -> str:
     return response.json()["token"]
 
 
+st.logo(os.path.join(os.path.dirname(__file__), "logo.svg"), size="large")
+
 with st.sidebar:
-    st.markdown("### Grupo Comercial Andes")
-    st.caption("Asistente B2B con IA gobernada")
     # The demo role is kept in the URL so a page reload keeps it; it only selects which demo token to request
     requested = st.query_params.get("rol", "cliente")
-    role = st.radio("Ingresar como", list(ROLES), format_func=lambda r: f"{ROLES[r][1]} · {ROLES[r][2]}", key="role",
-                    index=list(ROLES).index(requested) if requested in ROLES else 0)
+    role = st.selectbox("Ingresar como", list(ROLES), format_func=lambda r: f"{ROLES[r][1]} · {ROLES[r][2]}", key="role",
+                        index=list(ROLES).index(requested) if requested in ROLES else 0)
     st.query_params["rol"] = role
+    st.caption("Secciones para tu rol: " + ", ".join(SECTION_TITLES[name] for name in VISIBLE[role])
+               + ("." if role in {"supervisor", "gerente"} else ". Cambia a Supervisora o Gerente para ver Aprobaciones, Auditoría y Costos."))
     if st.session_state.get("token_role") != role:
         try:
             st.session_state.token, st.session_state.token_role = get_token(role), role
@@ -215,7 +226,50 @@ def send(message: str | None = None, pdf: tuple[str, bytes] | None = None) -> No
     rules = (body.get("evaluation") or {}).get("rules") or []
     if kind in {"answer", "blocked"} and body.get("route") == "special_order" and any(not r["ok"] for r in rules):
         kind = "order_blocked"  # one status for the whole screen: the chat and the summary must say the same thing
-    st.session_state.messages.append({"role": "assistant", "text": body["response"], "kind": kind, "totals": body["totals"]})
+    usage = body.get("usage") or []
+    cached = bool(usage) and all(step.get("cached") for step in usage)
+    st.session_state.messages.append({"role": "assistant", "text": body["response"], "kind": kind, "totals": body["totals"], "cached": cached})
+
+
+def evidence_panel(last: dict) -> None:
+    """Answers the question 'how do we know this is right?': the source of every figure in the answer."""
+    evaluation = last.get("evaluation") or {}
+    sources = last.get("sources") or []
+    if not evaluation.get("evidence") and not sources:
+        return
+    with st.expander("Evidencia: de dónde sale cada dato", icon=":material/plagiarism:"):
+        if evaluation.get("evidence"):
+            st.markdown("**Datos leídos del ERP en este momento** (no los escribe la IA)")
+            lines = {l["sku"]: l for l in evaluation.get("lines", [])}
+            rows = []
+            for e in evaluation["evidence"]:
+                line = lines.get(e["sku"], {})
+                rows.append({"Producto": e["sku"], "Precio de lista (ERP)": usd(e["erp_list_price"]),
+                             "Stock en bodega (ERP)": e["erp_stock_available"], "Cantidad pedida": line.get("quantity", "—")})
+            st.dataframe(rows, hide_index=True, use_container_width=True)
+            if evaluation.get("credit_available") is not None:
+                st.caption(md(f"Crédito disponible del cliente (ERP): {usd(evaluation['credit_available'])}"))
+
+            st.markdown("**Cómo se calculó** (motor de reglas en Python)")
+            for e in evaluation["evidence"]:
+                line = lines.get(e["sku"])
+                if not line:
+                    continue
+                total_policy = Decimal(e["volume_discount_pct"]) + Decimal(e["tier_bonus_pct"])
+                capped = " → se aplica el tope del nivel" if total_policy > Decimal(e["tier_max_pct"]) else ""
+                st.markdown(md(
+                    f"- **{e['sku']}** · descuento: {pct(e['volume_discount_pct'])} por volumen (POL-COM-01 §2.1) + "
+                    f"{pct(e['tier_bonus_pct'])} por nivel {evaluation.get('customer_tier')} (§3.1) = {pct(total_policy)}, "
+                    f"tope del nivel {pct(e['tier_max_pct'])} (§1.2){capped} → **{pct(e['applied_discount_pct'])}**  \n"
+                    f"  subtotal: {line['quantity']} × {usd(line['unit_price'])} × (1 − {pct(line['discount_pct'])}) = **{usd(line['amount'])}**"))
+            st.markdown(md(f"- **Total:** suma de subtotales = **{usd(evaluation['total'])}**"))
+
+        if sources:
+            st.markdown("**Fragmentos de política que la respuesta pudo usar** (cualquier otra cita se bloquea)")
+            for source in sources:
+                with st.container(border=True):
+                    st.caption(f"{source['citation']} · similitud {source['score']:.2f}")
+                    st.markdown(md(source["text"]))
 
 
 def order_summary(last: dict) -> None:
@@ -257,14 +311,30 @@ def order_summary(last: dict) -> None:
             citation = f" · _{rule['citation']}_" if rule.get("citation") else ""
             st.markdown(md(f":{color}[:material/{icon}:] **{RULES.get(rule['rule'], rule['rule'])}**: {rule['reason']}{citation}"))
 
-    valid_alternatives = [a for a in last.get("alternatives", []) if all(r["ok"] for r in a["evaluation"]["rules"])]
+    valid_alternatives = [(i, a) for i, a in enumerate(last.get("alternatives", [])) if all(r["ok"] for r in a["evaluation"]["rules"])]
     if valid_alternatives:
         st.markdown("**Alternativas válidas** · calculadas y revalidadas por el motor de reglas")
-        for number, alternative in enumerate(valid_alternatives, start=1):
+        for number, (index, alternative) in enumerate(valid_alternatives, start=1):
             with st.container(border=True):
                 lines = " + ".join(f"{l['quantity']} {l['unit']} {l['sku']}" for l in alternative["evaluation"]["lines"])
                 st.markdown(md(f":green[:material/alt_route:] **Opción {number}: {alternative['description']}**"))
                 st.markdown(md(f"{lines} · total **{usd(alternative['evaluation']['total'])}**"))
+                if st.session_state.role == "ejecutivo" and st.button("Preparar propuesta con esta opción", key=f"alt-{index}",
+                                                                      icon=":material/note_add:"):
+                    code, body = api("POST", "/alternatives/accept", json={"thread_id": last["thread_id"], "index": index})
+                    if code == 200:
+                        p = body["proposal"]
+                        text = (f"Preparé la propuesta {p['id']} con la opción {number} por {usd(p['content']['total'])} (sin impuestos). "
+                                f"Queda PENDIENTE de aprobación del {p['content']['approval_level']}; no se escribe nada en el ERP hasta que se apruebe.")
+                        st.session_state.messages.append({"role": "assistant", "text": text, "kind": "proposal"})
+                        st.session_state.last = {**last, "response_kind": "proposal", "evaluation": body["evaluation"], "alternatives": [],
+                                                 "pending_approval": {"proposal_id": p["id"], "content_hash": p["content_hash"],
+                                                                      "approval_level": p["content"]["approval_level"]}}
+                    else:
+                        st.session_state.messages.append({"role": "assistant", "text": f"No se pudo preparar la propuesta: {detail(body)}", "kind": "blocked"})
+                    st.rerun()
+
+    evidence_panel(last)
 
     verification = last.get("verification")
     if verification:
@@ -301,7 +371,9 @@ def page_conversation() -> None:
                     label, color, icon = RESPONSE.get(m["kind"], (m["kind"], "gray", "info"))
                     st.markdown(badge(label, color, icon))
                 st.markdown(md(m["text"]))
-                if m.get("totals"):
+                if m.get("cached"):
+                    st.caption(":material/cached: Respuesta desde la caché: misma pregunta con los mismos datos, sin llamar al modelo y sin costo.")
+                elif m.get("totals"):
                     t = m["totals"]
                     st.caption(md(f"{usd(t['cost_usd'], 5)} · {t['tokens']} tokens · {t['latency_ms'] / 1000:.1f} s"))
         with st.popover("Adjuntar orden de compra (PDF)", icon=":material/attach_file:"):
@@ -476,6 +548,34 @@ def page_costs() -> None:
         st.dataframe([{"Tipo": labels[kind], "Solicitudes": s["requests"], "Tokens prom.": s["avg_tokens"],
                        "Tiempo prom.": f"{s['avg_latency_ms'] / 1000:.1f} s"} for kind, s in costs["by_kind"].items()],
                      hide_index=True, use_container_width=True)
+    st.subheader("Cómo ahorramos tokens")
+    st.caption("Cada estrategia está implementada y medida; las cifras salen de las solicitudes registradas.")
+    by_kind = costs["by_kind"]
+
+    def avg(kind: str) -> str:
+        return usd(by_kind[kind]["avg_cost_usd"], 5) if kind in by_kind else "sin datos aún"
+
+    small_share = f"{costs.get('small_model_share', 0) * 100:.0f} %"
+    strategies = [
+        ("Modelo según la tarea", "El modelo pequeño clasifica, extrae y verifica; el principal solo redacta.",
+         f"{small_share} de las llamadas usan el modelo pequeño (4 veces más barato)"),
+        ("Python calcula", "Precios, descuentos, totales, stock, crédito y alternativas no usan la IA.", "0 tokens en la parte más delicada"),
+        ("Rechazo temprano", "Un ataque o una consulta fuera de tema se detiene con una sola llamada pequeña.", f"{avg('refused')} por rechazo"),
+        ("Respuestas sin redacción de IA", "Propuestas, cotizaciones y rechazos se arman con plantillas.", f"{avg('proposal')} por propuesta"),
+        ("Solo lo relevante", "Se envían 4 a 6 fragmentos de política, no los documentos completos.", "Menos tokens de entrada"),
+        ("Sin razonamiento oculto", "Se desactivan los tokens de pensamiento interno del modelo.", "No se pagan tokens invisibles"),
+        ("Topes por solicitud", "Máximo 12.000 tokens por solicitud y 800 de salida por llamada.", "Peor caso ≈ $0,05 por solicitud"),
+        ("Índice de políticas una sola vez", "Los documentos se vectorizan al cargarlos, no en cada consulta.", "2.592 tokens en total (< $0,0001)"),
+        ("Caché de respuestas", "La misma pregunta con los mismos datos no se vuelve a pagar.", f"{costs.get('cached_calls', 0)} llamadas evitadas"),
+    ]
+    st.dataframe([{"Estrategia": s, "Qué hace": what, "Efecto medido": effect} for s, what, effect in strategies],
+                 hide_index=True, use_container_width=True)
+    if costs.get("by_model"):
+        with st.expander("Consumo por modelo", icon=":material/memory:"):
+            st.dataframe([{"Modelo": model, "Tipo": "Embeddings" if v["kind"] == "embedding" else "Lenguaje", "Llamadas": v["calls"],
+                           "Desde caché": v["cached_calls"], "Tokens": v["tokens"], "Costo (USD)": f"{Decimal(v['cost_usd']):.6f}"}
+                          for model, v in costs["by_model"].items()], hide_index=True, use_container_width=True)
+
     st.caption(md(f"Basado en {costs['requests']} solicitudes reales · costo total medido {usd(costs['total_cost_usd'], 4)} · "
                   f"máximo por solicitud {usd(costs['max_cost_usd'], 5)} · las cifras coinciden con las trazas de Langfuse"
                   + ("" if costs["cost_complete"] else " · hay pasos con precio desconocido")))
@@ -487,11 +587,5 @@ PAGES = {
     "approvals": st.Page(page_approvals, title="Aprobaciones", icon=":material/fact_check:", url_path="aprobaciones"),
     "audit": st.Page(page_audit, title="Auditoría", icon=":material/history:", url_path="auditoria"),
     "costs": st.Page(page_costs, title="Costos", icon=":material/payments:", url_path="costos"),
-}
-VISIBLE = {
-    "cliente": ["conversation"],
-    "ejecutivo": ["conversation", "approvals"],
-    "supervisor": ["conversation", "approvals", "audit", "costs"],
-    "gerente": ["conversation", "approvals", "audit", "costs"],
 }
 st.navigation([PAGES[name] for name in VISIBLE[st.session_state.role]], position="top").run()

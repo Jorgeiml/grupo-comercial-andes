@@ -1,6 +1,7 @@
 """Per-request cost records and the monthly projection for the CFO panel."""
 
 import json
+import os
 from decimal import Decimal
 
 from ..auth.tokens import Identity
@@ -22,7 +23,7 @@ def record_request(thread_id: str, identity: Identity, response_kind: str, usage
 
 def cost_summary(monthly_requests: int) -> dict:
     with connect() as conn:
-        rows = [dict(r) for r in conn.execute("SELECT response_kind, tokens, cost_usd, cost_complete, latency_ms FROM request_costs")]
+        rows = [dict(r) for r in conn.execute("SELECT response_kind, tokens, cost_usd, cost_complete, latency_ms, steps_json FROM request_costs")]
     if not rows:
         return {"requests": 0, "monthly_requests": monthly_requests, "by_kind": {}, "note": "Sin solicitudes registradas todavía"}
 
@@ -48,4 +49,34 @@ def cost_summary(monthly_requests: int) -> dict:
         "projected_monthly_cost_usd": str((Decimal(overall["avg_cost_usd"]) * monthly_requests).quantize(Decimal("0.01"))),
         "per_user_licenses_usd": "0.00",  # pay per use: no per-seat licenses
         "by_kind": {kind: stats(items) for kind, items in by_kind.items()},
+        **savings(rows),
+    }
+
+
+def savings(rows: list[dict]) -> dict:
+    """Measured evidence of the token-saving strategy: model routing, cache hits and LLM-free steps."""
+    by_model: dict[str, dict] = {}
+    calls = cached = 0
+    for row in rows:
+        for step in json.loads(row["steps_json"]):
+            if step["output_tokens"] == 0 and step["model"].startswith("text-embedding"):
+                kind = "embedding"
+            else:
+                kind = "chat"
+            entry = by_model.setdefault(step["model"], {"kind": kind, "calls": 0, "cached_calls": 0, "tokens": 0, "cost_usd": Decimal(0)})
+            entry["calls"] += 1
+            entry["tokens"] += step["input_tokens"] + step["output_tokens"]
+            entry["cost_usd"] += Decimal(step["cost_usd"] or 0)
+            if step.get("cached"):
+                entry["cached_calls"] += 1
+                cached += 1
+            if kind == "chat":
+                calls += 1
+    small = os.getenv("MODEL_SMALL", "")
+    small_calls = by_model.get(small, {}).get("calls", 0)
+    return {
+        "by_model": {model: {**v, "cost_usd": str(v["cost_usd"])} for model, v in by_model.items()},
+        "llm_calls": calls,
+        "small_model_share": round(small_calls / calls, 3) if calls else 0,
+        "cached_calls": cached,
     }

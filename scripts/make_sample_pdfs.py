@@ -46,6 +46,13 @@ if __name__ == "__main__":
         [("Arroz Andes 10x2 kg", 300, "fardos"), ("Aceite Andes 12x1 L", 150, "cajas")],
         "Pago a 60 días. Entrega en bodega Guayaquil.",
     )
+    # The demo story (docs/guion-demo.md): three lines, one of them without enough stock in Guayaquil
+    purchase_order(
+        "oc-la-pradera-demo.pdf", "Supermercados La Pradera", "LP-2026-1203", "Guayaquil",
+        [("CM-001 Arroz Andes 10x2 kg", 300, "fardos"), ("CM-002 Aceite Andes 12x1 L", 150, "cajas"),
+         ("HG-001 Licuadora 1,5 L", 60, "unidades")],
+        "Pago a 60 días. Entrega en bodega Guayaquil.",
+    )
     purchase_order(
         "oc-don-lucho-sin-stock.pdf", "Comercial Don Lucho", "DL-0458", "Quito",
         [("HG-001 Licuadora 1,5 L", 40, "unidades")],
