@@ -11,9 +11,12 @@ sys.path[:0] = [str(REPO / "services" / "agent_api"), str(REPO / "services" / "m
 TOKENS = {"read": "test-read-token", "write": "test-write-token", "admin": "test-admin-token"}
 
 # Must be set before importing the mock ERP: it reads its configuration at import time
+_TMP = Path(tempfile.mkdtemp())
 os.environ.update(
     {
-        "ERP_DB_PATH": str(Path(tempfile.mkdtemp()) / "erp.db"),
+        "ERP_DB_PATH": str(_TMP / "erp.db"),
+        "AGENT_DB_PATH": str(_TMP / "agent.db"),
+        "JWT_SECRET": "test-jwt-secret-that-is-long-enough-0123456789",
         "ERP_SEED_DIR": str(REPO / "data" / "seed"),
         "ERP_READ_TOKEN": TOKENS["read"],
         "ERP_WRITE_TOKEN": TOKENS["write"],
@@ -30,6 +33,14 @@ from mock_erp.main import app  # noqa: E402
 @pytest.fixture(autouse=True)
 def fresh_erp():
     init_db(reset=True)
+
+
+@pytest.fixture(autouse=True)
+def fresh_agent_db():
+    from app.store.db import init_db as init_agent_db
+
+    Path(os.environ["AGENT_DB_PATH"]).unlink(missing_ok=True)
+    init_agent_db()
 
 
 @pytest.fixture
