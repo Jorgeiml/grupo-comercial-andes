@@ -50,6 +50,14 @@ def erp_client():
 
 
 @pytest.fixture
+def read_erp(erp_client):
+    """The agent's read-only ERP adapter (Dynamics), wired to the in-process mock ERP."""
+    from app.erp.factory import create_erp
+
+    return create_erp(TOKENS["read"], "dynamics", http_client=erp_client())
+
+
+@pytest.fixture
 def erp_db():
     """Direct read access to the ERP tables, to assert on state after a request."""
 
