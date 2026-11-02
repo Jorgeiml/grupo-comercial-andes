@@ -46,6 +46,7 @@ services:
       ERP_READ_TOKEN: ${ERP_READ_TOKEN:?missing in .env}
       ERP_WRITE_TOKEN: ${ERP_WRITE_TOKEN:?missing in .env}
       JWT_SECRET: ${JWT_SECRET:?missing in .env}
+      DEMO_TOKENS_ENABLED: ${DEMO_TOKENS_ENABLED:-true}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
@@ -57,6 +58,11 @@ services:
     depends_on:
       mock-erp:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   # ui (Streamlit) is added on day 3
 

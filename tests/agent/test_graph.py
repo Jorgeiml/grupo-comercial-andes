@@ -1,68 +1,18 @@
 """Agent routing and controls, with a scripted LLM: deterministic, free, and against the in-process ERP."""
 
-import pytest
-from app.agent import graph as graph_module
 from app.agent.graph import Dependencies
 from app.agent.runner import Agent
-from app.agent.schemas import Answerability, DraftAnswer, ExtractedLine, InputClassification, OrderExtraction, QueryPlan
+from app.agent.schemas import Answerability, DraftAnswer, QueryPlan
 from app.approvals.service import Decision, audit_trail, decide, get_proposal
 from app.auth.tokens import Identity
-from app.erp.factory import create_erp
 from app.erp.port import ErpUnavailable
-from app.rag.chunking import load_chunks
-from app.rag.retriever import RetrievalResult, RetrievedChunk
 from app.store.db import connect
 
-from conftest import REPO, TOKENS
+from conftest import CHUNKS, classified, fake_search, order
 
 EJECUTIVO = Identity(user="luis", role="ejecutivo")
 GERENTE = Identity(user="ana", role="gerente")
 CLIENTE = Identity(user="CL-001", role="cliente")
-
-CHUNKS = [
-    RetrievedChunk(citation=c.citation, title=c.title, section_title=c.section_title, text=c.text, score=0.6)
-    for c in load_chunks(REPO / "data" / "policies")
-]
-
-
-def fake_search(query):
-    return RetrievalResult(chunks=CHUNKS[:4], embedding_tokens=10, min_score=0.4)
-
-
-@pytest.fixture
-def script(monkeypatch):
-    """script["step"] = value or callable(messages) -> value. Unscripted steps fail the test."""
-    answers = {}
-
-    def fake_extract(kind, schema, messages, tracker, step):
-        tracker.record_chat(step, "gpt-5.6-luna", 10, 5, latency_ms=1)
-        value = answers[step]
-        return value(messages) if callable(value) else value
-
-    monkeypatch.setattr(graph_module, "extract", fake_extract)
-    return answers
-
-
-@pytest.fixture
-def agent(erp_client, tmp_path):
-    deps = Dependencies(
-        read_erp=lambda: create_erp(TOKENS["read"], "dynamics", http_client=erp_client()),
-        write_erp=lambda: create_erp(TOKENS["write"], "dynamics", http_client=erp_client()),
-        search=fake_search,
-    )
-    return Agent(deps, checkpoint_path=str(tmp_path / "checkpoints.db"))
-
-
-def order(customer="CL-001", sku="CM-001", quantity=300, warehouse="GYE", discount=None, days=None, ambiguities=()):
-    return OrderExtraction(
-        customer_code=customer,
-        lines=[ExtractedLine(sku=sku, product_as_written="producto", quantity=quantity, warehouse=warehouse)],
-        requested_discount_pct=discount, requested_payment_days=days, ambiguities=list(ambiguities),
-    )
-
-
-def classified(category):
-    return InputClassification(category=category, reason="test")
 
 
 def test_prompt_injection_is_refused_and_audited(agent, script):

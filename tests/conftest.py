@@ -68,6 +68,64 @@ def read_erp(erp_client):
     return create_erp(TOKENS["read"], "dynamics", http_client=erp_client())
 
 
+# ---------- agent with a scripted LLM (deterministic and free) ----------
+
+from app.agent.schemas import ExtractedLine, InputClassification, OrderExtraction  # noqa: E402
+from app.rag.chunking import load_chunks  # noqa: E402
+from app.rag.retriever import RetrievalResult, RetrievedChunk  # noqa: E402
+
+CHUNKS = [
+    RetrievedChunk(citation=c.citation, title=c.title, section_title=c.section_title, text=c.text, score=0.6)
+    for c in load_chunks(REPO / "data" / "policies")
+]
+
+
+def fake_search(query):
+    return RetrievalResult(chunks=CHUNKS[:4], embedding_tokens=10, min_score=0.4)
+
+
+def order(customer="CL-001", sku="CM-001", quantity=300, warehouse="GYE", discount=None, days=None, ambiguities=()):
+    return OrderExtraction(
+        customer_code=customer,
+        lines=[ExtractedLine(sku=sku, product_as_written="producto", quantity=quantity, warehouse=warehouse)],
+        requested_discount_pct=discount, requested_payment_days=days, ambiguities=list(ambiguities),
+    )
+
+
+def classified(category):
+    return InputClassification(category=category, reason="test")
+
+
+@pytest.fixture
+def script(monkeypatch):
+    """script["step"] = value or callable(messages) -> value. Unscripted steps fail the test."""
+    from app.agent import graph as graph_module
+
+    answers = {}
+
+    def fake_extract(kind, schema, messages, tracker, step):
+        tracker.record_chat(step, "gpt-5.6-luna", 10, 5, latency_ms=1)
+        value = answers[step]
+        return value(messages) if callable(value) else value
+
+    monkeypatch.setattr(graph_module, "extract", fake_extract)
+    return answers
+
+
+@pytest.fixture
+def agent(erp_client, tmp_path):
+    from app.agent.graph import Dependencies
+    from app.agent.runner import Agent
+    from app.erp.factory import create_erp
+
+    deps = Dependencies(
+        read_erp=lambda: create_erp(TOKENS["read"], "dynamics", http_client=erp_client()),
+        write_erp=lambda: create_erp(TOKENS["write"], "dynamics", http_client=erp_client()),
+        search=fake_search,
+    )
+    return Agent(deps, checkpoint_path=str(tmp_path / "checkpoints.db"))
+
+
 @pytest.fixture
 def erp_db():
     """Direct read access to the ERP tables, to assert on state after a request."""

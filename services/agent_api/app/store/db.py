@@ -59,6 +59,21 @@ CREATE TABLE IF NOT EXISTS escalations (
     status TEXT NOT NULL DEFAULT 'ABIERTA'
 );
 
+-- Technical cost of every chat request: the source of the CFO cost panel (independent of Langfuse)
+CREATE TABLE IF NOT EXISTS request_costs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    role TEXT NOT NULL,
+    response_kind TEXT NOT NULL,
+    tokens INTEGER NOT NULL,
+    cost_usd TEXT NOT NULL,
+    cost_complete INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    steps_json TEXT NOT NULL
+);
+
 -- The audit trail is append-only, enforced by the database itself, not only by the code
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update BEFORE UPDATE ON audit_log
 BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;

@@ -31,7 +31,8 @@ class Agent:
         path = checkpoint_path or os.getenv("CHECKPOINT_PATH", "/data/checkpoints.db")
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self._saver = SqliteSaver(sqlite3.connect(path, check_same_thread=False))
-        self._graph = build_graph(deps or Dependencies(read_erp=read_erp, write_erp=write_erp, search=search), self._saver)
+        self.deps = deps or Dependencies(read_erp=read_erp, write_erp=write_erp, search=search)
+        self._graph = build_graph(self.deps, self._saver)
 
     def _config(self, thread_id: str) -> dict:
         return {"configurable": {"thread_id": thread_id}, "recursion_limit": int(os.getenv("MAX_AGENT_ITERATIONS", "12"))}
