@@ -25,6 +25,8 @@ os.environ.update(
 )
 
 import pytest  # noqa: E402
+
+pytest_plugins = ["eval_harness"]  # fixtures and report hooks of the evaluation suite (tests/eval)
 from fastapi.testclient import TestClient  # noqa: E402
 from mock_erp.db import connect, init_db  # noqa: E402
 from mock_erp.main import app  # noqa: E402

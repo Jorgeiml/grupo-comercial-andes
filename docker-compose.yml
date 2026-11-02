@@ -78,6 +78,29 @@ services:
       sh -c "pip install -q --root-user-action=ignore --disable-pip-version-check -r services/agent_api/requirements-dev.txt
       && pytest -q -p no:cacheprovider tests"
 
+  # Evaluation suite: real LLM + real RAG index + in-process ERP reset per case. Costs ~USD 0.03 per run.
+  # docker compose run --rm eval   -> writes reports/eval-report.html
+  eval:
+    profiles: ["eval"]
+    build: ./services/agent_api
+    working_dir: /repo
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?missing in .env}
+      MODEL_SMALL: ${MODEL_SMALL}
+      MODEL_MAIN: ${MODEL_MAIN}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      MAX_TOKENS_PER_REQUEST: ${MAX_TOKENS_PER_REQUEST:-12000}
+      MAX_AGENT_ITERATIONS: ${MAX_AGENT_ITERATIONS:-12}
+      RAG_MIN_SCORE: ${RAG_MIN_SCORE:-0.40}
+      CHROMA_PATH: /data/chroma
+    volumes:
+      - ./:/repo:ro
+      - ./reports:/repo/reports
+      - agent-data:/data
+    command: >
+      sh -c "pip install -q --root-user-action=ignore --disable-pip-version-check -r services/agent_api/requirements-dev.txt
+      && pytest -q -p no:cacheprovider -m eval tests/eval"
+
 volumes:
   erp-data:
   agent-data:

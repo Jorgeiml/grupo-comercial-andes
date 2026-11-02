@@ -27,6 +27,10 @@ Con los servicios levantados: `python scripts/demo_scenarios.py` — corre los 5
 
 `docker compose run --rm tests` — corre la suite pytest en un contenedor, con el ERP simulado en memoria (no necesita secretos ni servicios levantados).
 
+## Evaluación (LLM real)
+
+`docker compose run --rm eval` — 28 casos (políticas, pedidos, ataques y flujo de aprobación) con el LLM y el RAG reales; el ERP simulado se reinicia en cada caso. Genera `reports/eval-report.html` y `reports/eval-results.json`. Costo aproximado: USD 0,02 por corrida. La última corrida está en [docs/eval-report.html](docs/eval-report.html).
+
 ## Estructura
 
 - `data/seed/` — datos ficticios de productos y clientes.

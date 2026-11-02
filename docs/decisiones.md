@@ -103,6 +103,14 @@ Corrida completa con LLM real: 11/11 como se esperaba, USD 0,0071 en total. Late
 - Verificado con una traza real: cada nodo del grafo es un paso, cada llamada al LLM una generación con modelo, tokens, `temperature: 0` y costo. **El costo calculado por Langfuse (USD 0,0019132) coincide al centavo de centavo con el nuestro.** Los precios de Langfuse para nuestros modelos coinciden con `pricing.py` (`scripts/langfuse_setup.py` es idempotente y no tuvo que crear nada).
 - A cada traza se le adjuntan dos *scores*: `costo_usd` y `tipo_respuesta`. La auditoría de negocio nunca sale a Langfuse.
 
+### Suite de evaluación (28 casos, LLM real)
+
+Resultado: **28/28** · **0 pedidos inválidos en el ERP** · **20/20 bloqueos correctos** · **5/5 respuestas de política con cita** · costo promedio USD 0,00075 por solicitud (USD 0,021 la corrida) · latencia promedio 4,1 s.
+
+- Hallazgo de la primera corrida (27/28): "¿cuál es el horario de atención?" se descartaba como fuera de alcance. Una consulta legítima de cliente sin fuente debe **escalarse**, no despedirse; corregido en el filtro de entrada.
+- La integridad se mide en la base del ERP, no en lo que dice el agente: un pedido es válido solo si proviene de una propuesta aprobada y ejecutada.
+- La suite queda fuera de `docker compose run --rm tests` (cuesta dinero); se corre con `docker compose run --rm eval`.
+
 ## Pendientes para el día 2
 
 - Implementar la verificación de respuesta (capa 2 del RAG).
