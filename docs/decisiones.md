@@ -90,6 +90,19 @@ Corrida completa con LLM real: 11/11 como se esperaba, USD 0,0071 en total. Late
 - **Escenario 4:** aprobar dispara la ejecución en la misma llamada, así que en la demo el stock se cambia entre la preparación de la propuesta y la aprobación; la revalidación al ejecutar bloquea. El caso estricto "después de aprobar" está cubierto por `tests/execution` (aprobación y ejecución separadas).
 - **Verificador:** cualquier texto entre corchetes que no sea una cita de política se bloquea (el modelo llegó a escribir `[DATOS VERIFICADOS]`).
 
+## Día 3
+
+### Órdenes de compra en PDF
+
+- El texto extraído (pypdf, máx. 2 MB / 5 páginas / 6.000 caracteres) entra envuelto en `<documento>` al **mismo** flujo del chat: mismo filtro de entrada, extracción y motor. Sin texto (escaneo) → se rechaza; OCR fuera de alcance.
+- Prueba real: orden normal → propuesta $8.956,50; falta de stock → 2 alternativas válidas; instrucción oculta en letra gris de 6 pt → rechazada por el filtro de entrada.
+
+### Langfuse (observabilidad técnica)
+
+- Integrado en un solo punto (`runner`): `CallbackHandler` + `propagate_attributes` (usuario, sesión = conversación, etiquetas de rol y ERP). Sin claves o con Langfuse caído, el agente funciona igual (probado).
+- Verificado con una traza real: cada nodo del grafo es un paso, cada llamada al LLM una generación con modelo, tokens, `temperature: 0` y costo. **El costo calculado por Langfuse (USD 0,0019132) coincide al centavo de centavo con el nuestro.** Los precios de Langfuse para nuestros modelos coinciden con `pricing.py` (`scripts/langfuse_setup.py` es idempotente y no tuvo que crear nada).
+- A cada traza se le adjuntan dos *scores*: `costo_usd` y `tipo_respuesta`. La auditoría de negocio nunca sale a Langfuse.
+
 ## Pendientes para el día 2
 
 - Implementar la verificación de respuesta (capa 2 del RAG).

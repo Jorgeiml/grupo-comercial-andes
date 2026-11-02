@@ -23,6 +23,7 @@ from .approvals.service import (
 from .auth.tokens import AuthError, Identity, Role, decode_token, issue_token
 from .documents.pdf import PdfError, as_message, extract_text
 from .execution.service import execute
+from .observability import tracing
 from .store.costs import cost_summary, record_request
 from .store.db import connect, init_db
 
@@ -37,6 +38,7 @@ async def lifespan(app: FastAPI):
     if not hasattr(app.state, "agent"):  # tests inject an agent with fake dependencies
         app.state.agent = Agent()
     yield
+    tracing.flush()  # send pending traces before the container stops
 
 
 app = FastAPI(title="agent-api — Grupo Comercial Andes", lifespan=lifespan)
@@ -127,6 +129,7 @@ def _run_chat(agent: Agent, identity: Identity, message: str, thread_id: str | N
         "citations": [c["citation"] for c in state.get("chunks", [])],
         "usage": result["usage"],
         "totals": totals,
+        "trace_id": result.get("trace_id"),
     }
 
 
