@@ -64,7 +64,19 @@ services:
       timeout: 3s
       retries: 20
 
-  # ui (Streamlit) is added on day 3
+  ui:
+    build: ./services/ui
+    environment:
+      API_URL: http://agent-api:8000
+      ERP_URL: http://mock-erp:8001
+      DEMO_MODE: ${DEMO_TOKENS_ENABLED:-true}
+      # Demo only: lets the "lower stock" button simulate another sale (scenario 4). Absent outside demo mode.
+      ERP_ADMIN_TOKEN: ${ERP_ADMIN_TOKEN:?missing in .env}
+    ports:
+      - "8501:8501"
+    depends_on:
+      agent-api:
+        condition: service_healthy
 
   # Test runner: docker compose run --rm tests
   # Reuses the agent-api image (it already has fastapi + httpx for the in-process mock ERP). No secrets needed.

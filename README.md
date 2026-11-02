@@ -19,6 +19,10 @@ Caso práctico SEIDOR (IA Engineer). Asistente para **consultas complejas** y **
 3. Indexa las políticas (una sola vez, o cuando cambien): `docker compose run --rm agent-api python -m app.rag.ingest`
 4. Para dejar la demo en cero: `docker compose down -v` (borra la base del ERP y el índice).
 
+## Interfaz
+
+`http://localhost:8501` (Streamlit): selector de rol, chat con carga de PDF, panel del pedido (reglas, alternativas, costo por paso), cola de aprobación, auditoría y panel de costos. Antes de un ensayo o de la presentación: `powershell -ExecutionPolicy Bypass -File scripts/reset_demo.ps1` (ERP con datos iniciales, cola y auditoría vacías; conserva el índice de políticas).
+
 ## Escenarios de la demo
 
 Con los servicios levantados: `python scripts/demo_scenarios.py` — corre los 5 escenarios contra la API (incluido el cambio en vivo a SAP), imprime cada respuesta con su costo y termina con un resumen esperado vs. obtenido. Deja el ERP en cero al empezar.

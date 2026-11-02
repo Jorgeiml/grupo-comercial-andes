@@ -7,6 +7,13 @@ from ..engine.validation import Evaluation, pct, usd
 from ..erp.port import Customer, Product
 
 
+PLURAL = {"unidad": "unidades", "caja": "cajas", "fardo": "fardos"}
+
+
+def quantity_text(quantity: int, unit: str) -> str:
+    return f"{quantity} {unit if quantity == 1 else PLURAL.get(unit, unit)}"
+
+
 def catalog_text(products: list[Product], customers: list[Customer]) -> str:
     product_rows = "\n".join(
         f"{p.sku} | {p.name} | {p.unit} | {'activo' if p.active else 'descontinuado'}" for p in products
@@ -19,7 +26,7 @@ def evaluation_text(evaluation: Evaluation, title: str = "PEDIDO EVALUADO") -> s
     lines = [f"{title} — cliente: {evaluation.customer_name or evaluation.draft.customer_code} (nivel {evaluation.customer_tier})"]
     for line in evaluation.lines:
         lines.append(
-            f"- {line.sku} {line.name}: {line.quantity} {line.unit} desde bodega {line.warehouse}, "
+            f"- {line.sku} {line.name}: {quantity_text(line.quantity, line.unit)} desde bodega {line.warehouse}, "
             f"precio de lista {usd(line.unit_price)}, descuento {pct(line.discount_pct)}, subtotal {usd(line.amount)}"
         )
     lines.append(f"Total del pedido (sin impuestos): {usd(evaluation.total)}")

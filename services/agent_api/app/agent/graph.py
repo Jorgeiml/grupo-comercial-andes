@@ -24,7 +24,7 @@ from ..llm.usage import UsageTracker
 from ..rag.retriever import RetrievalResult
 from ..store.db import connect, now
 from . import prompts
-from .facts import alternatives_text, as_json, catalog_text, evaluation_text
+from .facts import alternatives_text, as_json, catalog_text, evaluation_text, quantity_text
 from .schemas import Answerability, DraftAnswer, InputClassification, OrderExtraction, QueryPlan
 from .verifier import CITATION, normalize_citation, verify
 
@@ -264,7 +264,7 @@ def build_graph(deps: Dependencies, checkpointer=None):
         evaluation = Evaluation.model_validate(state["evaluation"])
         text = (
             f"Cotización referencial para {evaluation.customer_name}: total {usd(evaluation.total)} "
-            f"(sin impuestos). " + " ".join(f"{l.quantity} {l.unit} de {l.name} a {usd(l.unit_price)} con "
+            f"(sin impuestos). " + " ".join(f"{quantity_text(l.quantity, l.unit)} de {l.name} a {usd(l.unit_price)} con "
                                               f"{l.discount_pct.normalize():f} % de descuento." for l in evaluation.lines)
             + " Para emitir el pedido formal, tu ejecutivo de cuenta debe prepararlo y se requiere aprobación interna."
         )
