@@ -41,6 +41,31 @@ Puntaje (similitud coseno) del mejor fragmento, con `text-embedding-3-small`:
 1. Umbral `RAG_MIN_SCORE=0.40`: descarta lo claramente ajeno sin gastar en el LLM.
 2. Verificación de respuesta con `MODEL_SMALL` (salida estructurada): ¿los fragmentos recuperados contienen la respuesta? ¿qué citas la respaldan? Si no → "no tengo esa información" y escalamiento. Una cita que no esté entre los fragmentos recuperados bloquea la respuesta.
 
+## Día 2
+
+### Selección de modelos (2026-11-02)
+
+El CLAUDE.md exige temperatura 0 (respuestas repetibles para la suite de evaluación y la demo). Probado con una llamada real: extracción estructurada (`json_schema`, `strict=True`) de un pedido corto.
+
+| Modelo | Entrada / salida (USD por 1M tokens) | ¿Acepta temperatura 0? |
+|---|---|---|
+| gpt-6-luna | 0,10 / 0,50 | ❌ solo temperatura 1 |
+| gpt-6.1-terra | 1,00 / 5,00 | ❌ solo temperatura 1 |
+| **gpt-5.6-luna** | 0,20 / 1,20 | ✅ |
+| gpt-5.4-nano | 0,20 / 1,25 | ✅ |
+| **gpt-5.4-mini** | 0,75 / 4,50 | ✅ (además extrajo la unidad) |
+| gpt-4.1-mini | 0,40 / 1,60 | ✅ |
+| gpt-4.1 | 2,00 / 8,00 | ✅ |
+| gpt-4o-mini | 0,15 / 0,60 | ✅ pero completó una unidad que el cliente no dijo |
+
+**Decisión:** `MODEL_SMALL=gpt-5.6-luna`, `MODEL_MAIN=gpt-5.4-mini`. Una extracción consume ~240 tokens (≈ USD 0,0001 con el modelo pequeño).
+
+**Regla derivada:** la extracción deja en blanco lo que el cliente no dijo; Python completa con datos del ERP.
+
+### Versiones del stack del agente
+
+`langgraph==1.2.19`, `langgraph-checkpoint-sqlite==3.1.3`, `langchain-core==1.7.3` (no 1.7.4: publicada el mismo día), `langchain-openai==1.7.3`, `pyjwt==2.15.1`. Verificado: `interrupt()` + `Command(resume=...)` con `SqliteSaver` funciona con estas versiones.
+
 ## Pendientes para el día 2
 
 - Implementar la verificación de respuesta (capa 2 del RAG).
