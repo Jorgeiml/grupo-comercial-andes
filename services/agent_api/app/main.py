@@ -22,6 +22,7 @@ from .approvals.service import (
 )
 from .auth.tokens import AuthError, Identity, Role, decode_token, issue_token
 from .documents.pdf import PdfError, as_message, extract_text
+from .erp.port import ErpUnavailable
 from .execution.service import execute
 from .observability import tracing
 from .store.costs import cost_summary, record_request
@@ -133,20 +134,36 @@ def _run_chat(agent: Agent, identity: Identity, message: str, thread_id: str | N
     }
 
 
+def _customer_names(agent: Agent) -> dict[str, str]:
+    # Display only (never part of the hash): if the ERP is down, the UI falls back to the customer code
+    try:
+        return {c.code: c.name for c in agent.deps.read_erp().list_customers()}
+    except ErpUnavailable:
+        return {}
+
+
+def _with_customer_name(proposal, names: dict[str, str]) -> dict:
+    data = proposal.model_dump(mode="json")
+    data["customer_name"] = names.get(proposal.content.customer_code, proposal.content.customer_code)
+    return data
+
+
 @app.get("/proposals")
-def proposals(status: Status | None = None, _: Identity = Depends(require(STAFF))):
-    return [p.model_dump(mode="json") for p in list_proposals(status)]
+def proposals(request: Request, status: Status | None = None, _: Identity = Depends(require(STAFF))):
+    names = _customer_names(request.app.state.agent)
+    return [_with_customer_name(p, names) for p in list_proposals(status)]
 
 
 @app.get("/proposals/{proposal_id}")
-def proposal_detail(proposal_id: str, _: Identity = Depends(require(STAFF))):
+def proposal_detail(proposal_id: str, request: Request, _: Identity = Depends(require(STAFF))):
     try:
         proposal = get_proposal(proposal_id)
     except ApprovalError as e:
         raise approval_http_error(e) from e
     with connect() as conn:
         approvals = [dict(r) for r in conn.execute("SELECT * FROM approvals WHERE proposal_id = ? ORDER BY id", (proposal_id,))]
-    return {"proposal": proposal.model_dump(mode="json"), "approvals": approvals, "audit": audit_trail(proposal_id)}
+    names = _customer_names(request.app.state.agent)
+    return {"proposal": _with_customer_name(proposal, names), "approvals": approvals, "audit": audit_trail(proposal_id)}
 
 
 class DecisionRequest(BaseModel):

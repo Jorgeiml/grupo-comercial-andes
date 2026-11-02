@@ -54,6 +54,13 @@ def test_chat_returns_response_costs_and_pending_approval(api, script):
     assert all(rule["ok"] for rule in body["evaluation"]["rules"])
 
 
+def test_queue_shows_customer_name_without_changing_the_hash(api, script):
+    pending = propose_pradera(api, script)["pending_approval"]
+    [proposal] = api.get("/proposals", params={"status": "PENDIENTE"}, headers=GERENTE).json()
+    assert proposal["customer_name"] == "Supermercados La Pradera"
+    assert proposal["content_hash"] == pending["content_hash"]
+
+
 def test_customer_cannot_see_the_queue_or_approve(api, script):
     pending = propose_pradera(api, script)["pending_approval"]
     assert api.get("/proposals", headers=CLIENTE).status_code == 403

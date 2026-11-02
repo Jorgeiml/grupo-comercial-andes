@@ -1,0 +1,17 @@
+# Sober admin theme: off-white surfaces, white cards, one accent color (petrol blue).
+[theme]
+base = "light"
+primaryColor = "#0F5B78"
+backgroundColor = "#F5F6F8"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1B2430"
+font = "sans-serif"
+baseRadius = "0.5rem"
+borderColor = "#DDE1E6"
+showWidgetBorder = true
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+
+[client]
+toolbarMode = "minimal"
