@@ -60,6 +60,8 @@ El CLAUDE.md exige temperatura 0 (respuestas repetibles para la suite de evaluac
 
 **Decisión:** `MODEL_SMALL=gpt-5.6-luna`, `MODEL_MAIN=gpt-5.4-mini`. Una extracción consume ~240 tokens (≈ USD 0,0001 con el modelo pequeño).
 
+**Corrección (detectada por las pruebas):** `langchain-openai` elimina en silencio `temperature` en los modelos `gpt-5*` salvo que el razonamiento interno esté desactivado, así que la primera prueba de los `gpt-5.x` no envió temperatura 0. Verificado directo con el SDK de OpenAI: con `reasoning_effort="none"`, `gpt-5.6-luna`, `gpt-5.4-nano` y `gpt-5.4-mini` aceptan temperatura 0 (sin él, `gpt-5.6-luna` la rechaza). La capa de LLM agrega `reasoning_effort="none"` a los `gpt-5*`, y una prueba revisa el **payload real** que se enviaría, no solo la configuración. Desactivar el razonamiento es coherente con el diseño: el razonamiento sobre cifras lo hace Python. Llamada real de verificación: clasificación con ambos modelos, 252 tokens, USD 0,00021.
+
 **Regla derivada:** la extracción deja en blanco lo que el cliente no dijo; Python completa con datos del ERP.
 
 ### Versiones del stack del agente
