@@ -7,6 +7,7 @@ import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from .agent.runner import Agent
@@ -20,6 +21,7 @@ from .approvals.service import (
     list_proposals,
 )
 from .auth.tokens import AuthError, Identity, Role, decode_token, issue_token
+from .documents.pdf import PdfError, as_message, extract_text
 from .execution.service import execute
 from .store.costs import cost_summary, record_request
 from .store.db import connect, init_db
@@ -87,10 +89,29 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 def chat(body: ChatRequest, request: Request, identity: Identity = Depends(current_identity)):
-    agent: Agent = request.app.state.agent
-    thread_id = body.thread_id or f"th-{uuid.uuid4().hex[:12]}"
+    return _run_chat(request.app.state.agent, identity, body.message, body.thread_id)
+
+
+@app.post("/chat/upload")
+async def chat_upload(
+    request: Request,
+    filename: str = Query(default="orden.pdf", max_length=120),
+    thread_id: str | None = Query(default=None, max_length=64),
+    identity: Identity = Depends(current_identity),
+):
+    """Raw PDF body (Content-Type: application/pdf). The extracted text goes through the same flow as the chat."""
+    try:
+        text = extract_text(await request.body())
+    except PdfError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    # The agent is synchronous: run it in the thread pool so the event loop is not blocked
+    return await run_in_threadpool(_run_chat, request.app.state.agent, identity, as_message(filename, text), thread_id)
+
+
+def _run_chat(agent: Agent, identity: Identity, message: str, thread_id: str | None) -> dict:
+    thread_id = thread_id or f"th-{uuid.uuid4().hex[:12]}"
     start = time.perf_counter()
-    result = agent.send(thread_id, body.message, identity)
+    result = agent.send(thread_id, message, identity)
     latency_ms = round((time.perf_counter() - start) * 1000)
     totals = record_request(thread_id, identity, result["response_kind"], result["usage"], latency_ms)
     state = result["state"]

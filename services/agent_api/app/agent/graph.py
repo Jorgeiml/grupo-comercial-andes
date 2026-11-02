@@ -28,7 +28,7 @@ from .facts import alternatives_text, as_json, catalog_text, evaluation_text
 from .schemas import Answerability, DraftAnswer, InputClassification, OrderExtraction, QueryPlan
 from .verifier import CITATION, normalize_citation, verify
 
-MAX_INPUT_CHARS = 2000
+MAX_INPUT_CHARS = 7000  # chat messages are capped at 4000 by the API; extracted PDFs at 6000 plus a wrapper
 
 
 class AgentState(TypedDict, total=False):
