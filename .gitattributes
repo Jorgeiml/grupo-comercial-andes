@@ -1,0 +1,9 @@
+# Store and check out text files with LF so they run the same on Windows and in Linux containers
+* text=auto eol=lf
+
+# Binary files
+*.pdf binary
+*.png binary
+*.jpg binary
+*.db binary
+*.sqlite binary
