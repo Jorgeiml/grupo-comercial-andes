@@ -19,10 +19,19 @@ class SapErp(HttpErp):
         rows = self._get(f"{ROOT}/{path}", filter_)["d"]["results"]
         return rows[0] if rows else None
 
+    def list_products(self) -> list[Product]:
+        return [self._product(row) for row in self._get(f"{ROOT}/API_PRODUCT_SRV/A_Product")["d"]["results"]]
+
+    def list_customers(self) -> list[Customer]:
+        rows = self._get(f"{ROOT}/ZAPI_CUSTOMER_CREDIT_SRV/A_CustomerCredit")["d"]["results"]
+        return [self._customer(row) for row in rows]
+
     def get_product(self, sku: str) -> Product | None:
         row = self._first("API_PRODUCT_SRV/A_Product", f"Product eq {odata_quote(sku)}")
-        if row is None:
-            return None
+        return self._product(row) if row else None
+
+    @staticmethod
+    def _product(row: dict) -> Product:
         return Product(
             sku=row["Product"],
             name=row["ProductDescription"],
@@ -50,8 +59,10 @@ class SapErp(HttpErp):
 
     def get_customer(self, code: str) -> Customer | None:
         row = self._credit_row(code)
-        if row is None:
-            return None
+        return self._customer(row) if row else None
+
+    @staticmethod
+    def _customer(row: dict) -> Customer:
         return Customer(
             code=row["Customer"],
             name=row["CustomerName"],

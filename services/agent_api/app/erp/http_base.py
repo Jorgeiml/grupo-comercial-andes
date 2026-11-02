@@ -32,9 +32,9 @@ class HttpErp:
         self._client = http_client or httpx.Client(base_url=base_url, timeout=timeout_seconds)
         self._client.headers["Authorization"] = f"Bearer {token}"
 
-    def _get(self, path: str, filter_: str) -> dict:
+    def _get(self, path: str, filter_: str | None = None) -> dict:
         try:
-            response = self._client.get(path, params={"$filter": filter_})
+            response = self._client.get(path, params={"$filter": filter_} if filter_ else None)
             response.raise_for_status()
         except httpx.HTTPError as e:
             raise ErpUnavailable(f"GET {path} failed: {e}") from e

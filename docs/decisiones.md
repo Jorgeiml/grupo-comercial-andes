@@ -74,6 +74,15 @@ El CLAUDE.md exige temperatura 0 (respuestas repetibles para la suite de evaluac
 - El descuento lo calcula Python (volumen + nivel, con tope en el máximo del ERP). Un descuento solicitado mayor al de la política se rechaza aunque esté bajo el máximo del nivel.
 - Todas las reglas corren siempre; las alternativas (parcial, sustituto, combinada) se revalidan completas.
 
+### Grafo del agente (hallazgos de las pruebas reales)
+
+- **Orden del flujo de políticas:** la primera prueba real escaló la consulta compleja porque la verificación de respuesta pedía precio y nivel del cliente, que no están en las políticas. Ahora, si la consulta trae productos y cantidades, los datos del ERP (vía motor) se obtienen **antes** de decidir si es respondible.
+- **Quién decide detenerse:** el modelo de extracción marcaba como "ambigüedad" cosas que calcula el sistema (precio, plazo). Python decide: solo un campo estructural faltante (cliente, producto, cantidad, bodega) detiene el pedido; las notas del modelo se muestran como contexto.
+- **Presupuesto de tokens:** con 4.000 la consulta compleja (~5.500 tokens, USD 0,0028) se detuvo de forma segura. Subido a 12.000 (el doble de lo medido; peor caso ≈ USD 0,05). Una solicitud detenida reporta lo que alcanzó a gastar.
+- **Citas del motor:** las citas que el motor adjunta a sus reglas (p. ej. POL-COM-01 §3.2) cuentan como respaldadas para el verificador, igual que los fragmentos recuperados.
+
+Costos medidos (LLM real): consulta compleja USD 0,0028 · Galápagos USD 0,0005 · pedido especial USD 0,0004 · falta de stock con alternativas USD 0,0019.
+
 ## Pendientes para el día 2
 
 - Implementar la verificación de respuesta (capa 2 del RAG).

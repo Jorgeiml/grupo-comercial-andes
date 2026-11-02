@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from ..auth.tokens import APPROVER_ROLES, Identity
 from ..engine.models import OrderDraft, ProposalContent
 from ..engine.pricing import APPROVAL_CITATION
-from ..engine.validation import Evaluation
+from ..engine.validation import Evaluation, usd
 from ..store.db import audit, connect, now
 
 
@@ -148,7 +148,7 @@ def create_proposal(evaluation: Evaluation, identity: Identity, *, supersedes: s
             (proposal_id, seq, Status.PENDIENTE, content.model_dump_json(), content.hash, evaluation.draft.model_dump_json(),
              identity.user, identity.role, timestamp, timestamp, supersedes, thread_id),
         )
-        detail = f"total {content.total}, aprueba {content.approval_level}" + (f", corrige {supersedes}" if supersedes else "")
+        detail = f"total {usd(content.total)}, aprueba {content.approval_level}" + (f", corrige {supersedes}" if supersedes else "")
         audit(conn, actor=identity.user, role=identity.role, action="create_proposal", proposal_id=proposal_id,
               content_hash=content.hash, result="ok", detail=detail)
         return _fetch(conn, proposal_id)
@@ -168,7 +168,7 @@ def decide(proposal_id: str, identity: Identity, decision: Decision, presented_h
         if identity.user == proposal.created_by:
             raise ApprovalError("SELF_APPROVAL", "Quien prepara la propuesta no puede decidir sobre ella")
         if decision == Decision.APPROVE and proposal.content.approval_level == "gerente" and identity.role != "gerente":
-            raise ApprovalError("LEVEL_INSUFFICIENT", f"Total {proposal.content.total}: requiere aprobación del gerente ({APPROVAL_CITATION})")
+            raise ApprovalError("LEVEL_INSUFFICIENT", f"Total {usd(proposal.content.total)}: requiere aprobación del gerente ({APPROVAL_CITATION})")
 
         _set_status(conn, proposal, DECISION_STATUS[decision])
         conn.execute(

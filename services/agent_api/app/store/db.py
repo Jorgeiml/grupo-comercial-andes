@@ -47,6 +47,18 @@ CREATE TABLE IF NOT EXISTS audit_log (
     detail TEXT
 );
 
+-- Questions the agent could not answer, handed to a person with their context
+CREATE TABLE IF NOT EXISTS escalations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    role TEXT NOT NULL,
+    question TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    context_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ABIERTA'
+);
+
 -- The audit trail is append-only, enforced by the database itself, not only by the code
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update BEFORE UPDATE ON audit_log
 BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;

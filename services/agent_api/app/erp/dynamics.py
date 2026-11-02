@@ -13,10 +13,18 @@ class DynamicsErp(HttpErp):
         rows = self._get(f"/data/{entity}", filter_)["value"]
         return rows[0] if rows else None
 
+    def list_products(self) -> list[Product]:
+        return [self._product(row) for row in self._get("/data/ReleasedProductsV2")["value"]]
+
+    def list_customers(self) -> list[Customer]:
+        return [self._customer(row) for row in self._get("/data/CustomersV3")["value"]]
+
     def get_product(self, sku: str) -> Product | None:
         row = self._first("ReleasedProductsV2", f"ItemNumber eq {odata_quote(sku)}")
-        if row is None:
-            return None
+        return self._product(row) if row else None
+
+    @staticmethod
+    def _product(row: dict) -> Product:
         return Product(
             sku=row["ItemNumber"],
             name=row["ProductName"],
@@ -41,8 +49,10 @@ class DynamicsErp(HttpErp):
 
     def get_customer(self, code: str) -> Customer | None:
         row = self._first("CustomersV3", f"CustomerAccount eq {odata_quote(code)}")
-        if row is None:
-            return None
+        return self._customer(row) if row else None
+
+    @staticmethod
+    def _customer(row: dict) -> Customer:
         return Customer(
             code=row["CustomerAccount"],
             name=row["OrganizationName"],
