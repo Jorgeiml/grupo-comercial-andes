@@ -126,6 +126,18 @@ def list_proposals(status: Status | None = None) -> list[Proposal]:
         return [_row_to_proposal(row) for row in conn.execute(query + " ORDER BY seq", params)]
 
 
+def _open_correction(conn, thread_id: str | None) -> str | None:
+    """The conversation's proposal that was sent back for correction and has no corrected version yet."""
+    if not thread_id:
+        return None
+    row = conn.execute(
+        "SELECT id FROM proposals p WHERE thread_id = ? AND status = ?"
+        " AND NOT EXISTS (SELECT 1 FROM proposals n WHERE n.supersedes = p.id) ORDER BY seq DESC LIMIT 1",
+        (thread_id, Status.EN_CORRECCION),
+    ).fetchone()
+    return row["id"] if row else None
+
+
 def create_proposal(evaluation: Evaluation, identity: Identity, *, supersedes: str | None = None, thread_id: str | None = None) -> Proposal:
     def work(conn):
         if identity.role != "ejecutivo":
@@ -133,10 +145,15 @@ def create_proposal(evaluation: Evaluation, identity: Identity, *, supersedes: s
         if not evaluation.ok:
             failed = ", ".join(rule.rule for rule in evaluation.failed)
             raise ApprovalError("INVALID_PROPOSAL", f"La propuesta no pasa la validación: {failed}")
-        if supersedes:
-            previous = _fetch(conn, supersedes)
+        # A new proposal in a conversation whose proposal was sent back is its corrected version (a new hash, a new approval)
+        corrects = supersedes or _open_correction(conn, thread_id)
+        if corrects:
+            previous = _fetch(conn, corrects)
             if previous.status != Status.EN_CORRECCION:
-                raise ApprovalError("INVALID_STATE", f"Solo se corrige una propuesta EN_CORRECCION; {supersedes} está {previous.status}")
+                raise ApprovalError("INVALID_STATE", f"Solo se corrige una propuesta EN_CORRECCION; {corrects} está {previous.status}")
+            if conn.execute("SELECT 1 FROM proposals WHERE supersedes = ?", (corrects,)).fetchone():
+                raise ApprovalError("ALREADY_CORRECTED", f"La propuesta {corrects} ya tiene una versión corregida")
+        supersedes_id = corrects
 
         content = evaluation.content()
         seq = conn.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM proposals").fetchone()[0]
@@ -146,9 +163,9 @@ def create_proposal(evaluation: Evaluation, identity: Identity, *, supersedes: s
             "INSERT INTO proposals (id, seq, status, content_json, content_hash, draft_json, created_by, created_role,"
             " created_at, updated_at, supersedes, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (proposal_id, seq, Status.PENDIENTE, content.model_dump_json(), content.hash, evaluation.draft.model_dump_json(),
-             identity.user, identity.role, timestamp, timestamp, supersedes, thread_id),
+             identity.user, identity.role, timestamp, timestamp, supersedes_id, thread_id),
         )
-        detail = f"total {usd(content.total)}, aprueba {content.approval_level}" + (f", corrige {supersedes}" if supersedes else "")
+        detail = f"total {usd(content.total)}, aprueba {content.approval_level}" + (f", corrige {supersedes_id}" if supersedes_id else "")
         audit(conn, actor=identity.user, role=identity.role, action="create_proposal", proposal_id=proposal_id,
               content_hash=content.hash, result="ok", detail=detail)
         return _fetch(conn, proposal_id)
@@ -217,6 +234,13 @@ def valid_approval(proposal: Proposal) -> dict | None:
             (proposal.id, Decision.APPROVE, proposal.content_hash),
         ).fetchone()
     return dict(row) if row and proposal.status == Status.APROBADA else None
+
+
+def last_decisions() -> dict[str, dict]:
+    """Each proposal's latest decision (who, role, comment, when): what the executive needs to read to correct it."""
+    with connect() as conn:
+        rows = conn.execute("SELECT proposal_id, decision, actor, role, comment, at FROM approvals ORDER BY id").fetchall()
+    return {row["proposal_id"]: dict(row) for row in rows}
 
 
 def audit_trail(proposal_id: str | None = None) -> list[dict]:

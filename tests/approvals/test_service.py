@@ -3,7 +3,17 @@
 import sqlite3
 
 import pytest
-from app.approvals.service import ApprovalError, Decision, Status, audit_trail, create_proposal, decide, get_proposal, valid_approval
+from app.approvals.service import (
+    ApprovalError,
+    Decision,
+    Status,
+    audit_trail,
+    create_proposal,
+    decide,
+    get_proposal,
+    last_decisions,
+    valid_approval,
+)
 from app.auth.tokens import Identity
 from app.engine.models import OrderDraft, RequestedLine
 from app.engine.validation import evaluate
@@ -102,6 +112,26 @@ def test_correction_creates_new_version_with_new_hash(read_erp, small):
     assert corrected.id == "PROP-000002" and corrected.supersedes == small.id
     assert corrected.content_hash != small.content_hash
     assert valid_approval(get_proposal(small.id)) is None
+
+
+def test_next_proposal_in_the_conversation_is_the_corrected_version(read_erp):
+    sent_back = create_proposal(evaluation(read_erp), EJECUTIVO, thread_id="t1")
+    decide(sent_back.id, SUPERVISOR, Decision.REQUEST_CHANGES, sent_back.content_hash, comment="son 12 fardos")
+
+    corrected = create_proposal(evaluation(read_erp, quantity=12), EJECUTIVO, thread_id="t1")
+    other_conversation = create_proposal(evaluation(read_erp, quantity=5), EJECUTIVO, thread_id="t2")
+    next_in_t1 = create_proposal(evaluation(read_erp, quantity=8), EJECUTIVO, thread_id="t1")
+
+    assert corrected.supersedes == sent_back.id and corrected.status == Status.PENDIENTE
+    assert other_conversation.supersedes is None
+    assert next_in_t1.supersedes is None  # the correction was already made: later proposals are independent
+    assert last_decisions()[sent_back.id]["comment"] == "son 12 fardos"
+
+
+def test_a_proposal_is_corrected_only_once(read_erp, small):
+    decide(small.id, SUPERVISOR, Decision.REQUEST_CHANGES, small.content_hash)
+    create_proposal(evaluation(read_erp, quantity=12), EJECUTIVO, supersedes=small.id)
+    assert error_code(lambda: create_proposal(evaluation(read_erp, quantity=13), EJECUTIVO, supersedes=small.id)) == "ALREADY_CORRECTED"
 
 
 def test_only_proposals_in_correction_can_be_superseded(read_erp, small):

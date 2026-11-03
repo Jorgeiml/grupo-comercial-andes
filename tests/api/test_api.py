@@ -141,6 +141,27 @@ def test_alternative_can_be_accepted_after_a_follow_up_question(api, script):
     assert [(l["sku"], l["quantity"]) for l in response.json()["proposal"]["content"]["lines"]] == [("HG-001", 25), ("HG-101", 15)]
 
 
+def test_correction_request_reaches_the_executive_and_links_the_new_version(api, script, erp_db):
+    pending = propose_pradera(api, script)["pending_approval"]
+    decision = {"decision": "corregir", "content_hash": pending["content_hash"], "comment": "bájalo a 250 fardos"}
+    assert api.post(f"/proposals/{pending['proposal_id']}/decision", json=decision, headers=SUPERVISOR).status_code == 200
+
+    [sent_back] = api.get("/proposals", headers=EJECUTIVO).json()
+    assert sent_back["status"] == "EN_CORRECCION" and sent_back["corrected_by"] is None
+    assert sent_back["last_decision"]["comment"] == "bájalo a 250 fardos" and sent_back["last_decision"]["actor"] == "sofia"
+
+    script["extract_order"] = order(quantity=250, days=60)
+    corrected = api.post("/chat", json={"message": "250 fardos", "thread_id": sent_back["thread_id"]}, headers=EJECUTIVO).json()
+    assert corrected["response_kind"] == "proposal"
+    assert f"versión corregida de {sent_back['id']}" in corrected["response"]
+
+    by_id = {p["id"]: p for p in api.get("/proposals", headers=EJECUTIVO).json()}
+    new_id = corrected["pending_approval"]["proposal_id"]
+    assert by_id[new_id]["supersedes"] == sent_back["id"] and by_id[sent_back["id"]]["corrected_by"] == new_id
+    assert [p["id"] for p in api.get("/proposals", params={"status": "PENDIENTE"}, headers=EJECUTIVO).json()] == [new_id]
+    assert erp_db("SELECT * FROM sales_orders") == []  # the corrected version still needs its own approval
+
+
 def test_invalid_alternative_cannot_become_a_proposal(api, script):
     script["classify"] = classified("special_order")
     script["extract_order"] = order(customer="CL-002", sku="HG-001", quantity=40, warehouse="UIO")

@@ -19,6 +19,7 @@ from .approvals.service import (
     create_proposal,
     decide,
     get_proposal,
+    last_decisions,
     list_proposals,
 )
 from .engine.models import OrderDraft
@@ -180,7 +181,11 @@ def accept_alternative(body: AcceptAlternative, request: Request, identity: Iden
 @app.get("/proposals")
 def proposals(request: Request, status: Status | None = None, _: Identity = Depends(require(STAFF))):
     names = _customer_names(request.app.state.agent)
-    return [_with_customer_name(p, names) for p in list_proposals(status)]
+    items = list_proposals()  # all of them: a filtered list still needs to know which proposal corrects which
+    decisions = last_decisions()
+    corrected_by = {p.supersedes: p.id for p in items if p.supersedes}
+    return [{**_with_customer_name(p, names), "last_decision": decisions.get(p.id), "corrected_by": corrected_by.get(p.id)}
+            for p in items if status is None or p.status == status]
 
 
 @app.get("/proposals/{proposal_id}")

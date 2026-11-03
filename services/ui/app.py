@@ -83,6 +83,7 @@ DENIALS = {
     "SELF_APPROVAL": "no puede aprobar lo que preparó", "NOT_AN_APPROVER": "rol sin permiso para aprobar",
     "INVALID_STATE": "la propuesta ya fue decidida", "NOT_APPROVED": "sin aprobación vigente",
     "ROLE_NOT_ALLOWED": "rol sin permiso", "INVALID_PROPOSAL": "no pasa las validaciones",
+    "ALREADY_CORRECTED": "ya tiene una versión corregida",
 }
 RESULTS = {
     "ok": ("Correcto", "green"), "executed": ("Escrito en el ERP", "green"), "blocked": ("Bloqueado", "red"),
@@ -448,7 +449,8 @@ def page_approvals() -> None:
         with st.container(border=True):
             top_left, top_right = st.columns([3, 1])
             with top_left:
-                st.markdown(badge("Pendiente", "orange", "schedule") + " " + badge(f"Aprueba: {content['approval_level']}", "gray", "verified_user"))
+                st.markdown(badge("Pendiente", "orange", "schedule") + " " + badge(f"Aprueba: {content['approval_level']}", "gray", "verified_user")
+                            + (" " + badge(f"Versión corregida de {p['supersedes']}", "blue", "edit_note") if p.get("supersedes") else ""))
                 st.markdown(f"#### {p['customer_name']}")
                 st.caption(f"{p['id']} · preparó {p['created_by']} · {ago(p['created_at'])}"
                            + (f" · pago a {content['payment_days']} días" if content.get("payment_days") else ""))
@@ -473,11 +475,36 @@ def page_approvals() -> None:
                         st.session_state.decision_result = (code, body)
                         st.rerun()
 
+    to_correct = [p for p in reversed(proposals) if p["status"] == "EN_CORRECCION" and not p.get("corrected_by")]
+    if to_correct:
+        st.subheader("Devueltas para corrección")
+        st.caption("Una propuesta devuelta no se edita: el ejecutivo prepara una versión corregida, que se valida y se aprueba de nuevo.")
+        for p in to_correct:
+            decision = p.get("last_decision") or {}
+            with st.container(border=True):
+                st.markdown(badge("En corrección", "orange", "edit_note") + f" **{p['id']}** · {p['customer_name']} · {usd(p['content']['total'])}")
+                st.markdown(md(f":material/comment: **{decision.get('actor', '—')}** ({decision.get('role', '—')}) pidió: "
+                               f"_{decision.get('comment') or 'sin comentario'}_"))
+                if role == "ejecutivo":
+                    if not p.get("thread_id"):
+                        st.caption("Esta propuesta no tiene conversación asociada: prepara el pedido corregido en una conversación nueva.")
+                    elif st.button("Corregir en la conversación", key=f"fix-{p['id']}", icon=":material/edit_note:"):
+                        note = (f"Corrigiendo la propuesta {p['id']}. Pedido de corrección: "
+                                f"{decision.get('comment') or 'sin comentario'}. Escribe el pedido con los cambios: "
+                                "se validará de nuevo y quedará como su versión corregida, con una aprobación nueva.")
+                        st.session_state.messages = [{"role": "assistant", "text": note, "kind": "correction"}]
+                        st.session_state.thread_id, st.session_state.last, st.session_state.order = p["thread_id"], None, None
+                        st.switch_page(PAGES["conversation"], query_params={"rol": role})  # keep the role across the page change
+
     decided = [p for p in reversed(proposals) if p["status"] != "PENDIENTE"]
     if decided:
         st.subheader("Historial")
         st.dataframe(
             styled([{"Estado": STATUS[p["status"]][0], "Propuesta": p["id"], "Cliente": p["customer_name"], "Total": usd(p["content"]["total"]),
+                     "Decidió": f"{p['last_decision']['actor']} ({p['last_decision']['role']})" if p.get("last_decision") else "—",
+                     "Comentario": (p.get("last_decision") or {}).get("comment") or "—",
+                     "Versiones": (f"corregida en {p['corrected_by']}" if p.get("corrected_by") else "")
+                                  + (f"corrige {p['supersedes']}" if p.get("supersedes") else "") or "—",
                      "Pedido en el ERP": p.get("erp_order_number") or "—", "ERP": (p.get("erp_adapter") or "—").capitalize()} for p in decided],
                    {"Estado": {label: color for label, color, _ in STATUS.values()}}),
             hide_index=True, use_container_width=True,

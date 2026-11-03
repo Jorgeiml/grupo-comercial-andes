@@ -287,8 +287,9 @@ def build_graph(deps: Dependencies, checkpointer=None):
             proposal = create_proposal(evaluation, _identity(state), thread_id=state.get("thread_id"))
         except ApprovalError as e:
             return _reply("refused", f"No se pudo crear la propuesta: {e.message}")
+        corrects = f", versión corregida de {proposal.supersedes}," if proposal.supersedes else ""
         text = (
-            f"Preparé la propuesta {proposal.id} para {evaluation.customer_name} por {usd(proposal.content.total)} "
+            f"Preparé la propuesta {proposal.id}{corrects} para {evaluation.customer_name} por {usd(proposal.content.total)} "
             f"(sin impuestos). Todas las validaciones pasaron. Queda PENDIENTE de aprobación del {proposal.content.approval_level}; "
             f"no se escribe nada en el ERP hasta que se apruebe."
         )
@@ -311,7 +312,8 @@ def build_graph(deps: Dependencies, checkpointer=None):
             return {**_reply("executed" if result.status != ExecutionStatus.BLOCKED else "blocked", text), "execution": as_json(result)}
         if proposal.status == Status.RECHAZADA:
             return _reply("rejected", f"La propuesta {proposal_id} fue rechazada. No se escribió nada en el ERP.")
-        return _reply("correction", f"Se pidió corregir la propuesta {proposal_id}. Indícame los cambios para preparar una nueva versión.")
+        return _reply("correction", f"Se pidió corregir la propuesta {proposal_id}. El ejecutivo la verá en Aprobaciones con el comentario "
+                                    "y preparará una versión corregida, que necesitará una aprobación nueva. No se escribió nada en el ERP.")
 
     # ---------- output guardrail ----------
     def verify_answer(state: AgentState) -> dict:
