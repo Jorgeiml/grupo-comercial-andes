@@ -20,9 +20,6 @@
 ## 2. Formas de pago
 
 2.1. Se aceptan transferencia bancaria y cheque certificado a nombre de Grupo Comercial Andes.
-
-2.2. El pago anticipado por transferencia no consume cupo de crédito.
-
 ## 3. Cupo de crédito
 
 3.1. Cada cliente tiene un cupo de crédito registrado en el ERP. El **crédito disponible** es el cupo menos el saldo pendiente de pago.
@@ -33,9 +30,6 @@
   a) pago anticipado del total o de la diferencia;
   b) reducir el pedido hasta un monto que quepa en el crédito disponible;
   c) solicitar una ampliación de cupo a la Gerencia Financiera, que responde en un máximo de 2 días hábiles.
-
-3.4. Un cliente con facturas vencidas por más de 15 días no puede emitir nuevos pedidos a crédito hasta regularizar su saldo.
-
 ## 4. Aprobación interna de pedidos
 
 4.1. Todo pedido especial preparado por un ejecutivo requiere aprobación interna antes de registrarse en el ERP:

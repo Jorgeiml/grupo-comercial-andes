@@ -59,6 +59,15 @@ RULES = {
     "CREDIT_AVAILABLE": "Crédito disponible",
     "APPROVAL_LEVEL": "Nivel de aprobación",
 }
+HELP = {  # plain-language definitions behind the "?" icons: nobody has to guess what a term means
+    "tier": "El nivel comercial del cliente (Oro, Plata o Bronce) lo define la política de descuentos. "
+            "De él dependen el descuento máximo y el plazo de pago: Oro hasta 60 días, Plata 30, Bronce 15.",
+    "credit": "Crédito comercial: el cliente compra hoy y paga después (a 15, 30 o 60 días), hasta un cupo máximo. "
+              "Crédito disponible = cupo − lo que todavía debe. Si el pedido no cabe, no se despacha a crédito. "
+              "SAP y Dynamics lo manejan como función estándar.",
+    "citation": "Las políticas son el reglamento comercial escrito de la empresa: descuentos, pago y crédito, entregas, "
+                "devoluciones y garantías. Una cita como POL-FIN-02 §3.2 se lee: política de pago y crédito, sección 3.2.",
+}
 STEPS = {
     "classify": "Filtro de entrada", "plan": "Planificación de la búsqueda", "retrieve": "Búsqueda en políticas",
     "extract_order": "Lectura del pedido", "check_answerable": "Verificación de respaldo",
@@ -246,7 +255,7 @@ def evidence_panel(evaluation: dict, sources: list[dict]) -> None:
                              "Stock en bodega (ERP)": e["erp_stock_available"], "Cantidad pedida": line.get("quantity", "—")})
             st.dataframe(rows, hide_index=True, use_container_width=True)
             if evaluation.get("credit_available") is not None:
-                st.caption(md(f"Crédito disponible del cliente (ERP): {usd(evaluation['credit_available'])}"))
+                st.caption(md(f"Crédito disponible del cliente (ERP): {usd(evaluation['credit_available'])}"), help=HELP["credit"])
 
             st.markdown("**Cómo se calculó** (motor de reglas en Python)")
             for e in evaluation["evidence"]:
@@ -281,7 +290,7 @@ def response_panel(last: dict) -> None:
         else:
             st.markdown(md(":red[:material/gpp_bad:] **Verificador:** la respuesta generada se bloqueó. " + "; ".join(verification["issues"])))
     if last.get("citations"):
-        st.caption("Fuentes consultadas: " + ", ".join(last["citations"]))
+        st.caption("Fuentes consultadas: " + ", ".join(last["citations"]), help=HELP["citation"])
     if not (last.get("evaluation") or {}).get("rules"):  # with an order, its evidence is shown in the order panel
         evidence_panel({}, last.get("sources") or [])
 
@@ -316,7 +325,7 @@ def order_panel(order: dict) -> None:
         st.markdown(badge("Todas las validaciones pasaron", "green", "verified"))
 
     with st.container(border=True):
-        st.markdown(f"**{evaluation.get('customer_name')}** · nivel {evaluation.get('customer_tier')}")
+        st.markdown(f"**{evaluation.get('customer_name')}** · nivel {evaluation.get('customer_tier')}", help=HELP["tier"])
         lines = evaluation.get("lines", [])
         discounts = sorted({pct(l["discount_pct"]) for l in lines})
         st.metric("Total sin impuestos" if not failed else "Total solicitado (no se puede procesar así)", usd(evaluation["total"]))
@@ -330,11 +339,12 @@ def order_panel(order: dict) -> None:
                 hide_index=True, use_container_width=True,
             )
 
-    st.markdown("**Validaciones** · las calcula el motor de reglas, no la IA")
+    st.markdown("**Validaciones** · las calcula el motor de reglas, no la IA", help=HELP["citation"])
     for rule in sorted(rules, key=lambda r: r["ok"]):
         icon, color = ("check_circle", "green") if rule["ok"] else ("cancel", "red")
         citation = f" · _{rule['citation']}_" if rule.get("citation") else ""
-        st.markdown(md(f":{color}[:material/{icon}:] **{RULES.get(rule['rule'], rule['rule'])}**: {rule['reason']}{citation}"))
+        st.markdown(md(f":{color}[:material/{icon}:] **{RULES.get(rule['rule'], rule['rule'])}**: {rule['reason']}{citation}"),
+                    help=HELP["credit"] if rule["rule"] == "CREDIT_AVAILABLE" else None)
 
     valid_alternatives = [(i, a) for i, a in enumerate(order.get("alternatives", [])) if all(r["ok"] for r in a["evaluation"]["rules"])]
     if valid_alternatives:
@@ -642,6 +652,7 @@ def page_erp() -> None:
                          "Descuento máximo": pct(c["MaxDiscountPct"]), "Límite de crédito": usd(limit), "Usado": usd(used),
                          "Disponible": usd(limit - used)})
         st.dataframe(rows, hide_index=True, use_container_width=True)
+        st.caption("Disponible = límite de crédito − usado (facturas aún no pagadas).", help=HELP["credit"])
     with orders_tab:
         if not orders:
             st.caption("Todavía no hay pedidos. Solo aparecen aquí después de una aprobación humana.")
