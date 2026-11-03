@@ -36,7 +36,10 @@ Pegar en el chat:
 
 **Decir:** *"El sustituto solo no alcanzaba (hay 20 en Guayaquil): el sistema ni siquiera lo ofrece. Las alternativas las calcula Python; la IA solo las explica."*
 
-3. En la **Opción 2**, pulsar **Preparar propuesta con esta opción** → propuesta **PROP-000001** por **$11.510,10**, pendiente del **gerente**.
+3. Pegar en el chat: *"¿Y por qué no se puede procesar el pedido?"*
+   **Debe aparecer:** *"…se solicitaron 60 unidades y en bodega GYE hay 40 disponibles [POL-LOG-03 §2.1]…"*. El pedido sigue a la derecha.
+   **Decir:** *"No es un texto fijo: entiende la pregunta, recuerda el pedido de la conversación y responde con los datos reales."*
+4. En la **Opción 2**, pulsar **Preparar propuesta con esta opción** → propuesta **PROP-000001** por **$11.510,10**, pendiente del **gerente**.
 
 ## 3. Aprobación — roles **Supervisora** y **Gerente**
 
@@ -46,6 +49,8 @@ Pegar en el chat:
 2. Rol **Gerente comercial · Ana** → **Aprobaciones** → **Aprobar**.
    **Debe aparecer:** *"Pedido SO-000001 registrado en el ERP (dynamics)"*.
    **Decir:** *"Antes de escribir, el servicio de ejecución revalidó stock, precio y crédito. Y si aprobaran dos veces, el ERP no lo duplica."*
+3. Gerente → **ERP (simulador)** → pestaña **Pedidos registrados**: SO-000001, con la propuesta de origen PROP-000001. Cambiar entre **Dynamics 365** y **SAP S/4HANA** para ver el mismo pedido con los nombres de campos de cada ERP. Pestaña **Registro de escrituras**: el único que escribió fue el *Servicio de ejecución*.
+   **Decir:** *"De aquí salen los datos. El agente solo puede leer; si intentara escribir, el ERP lo rechazaría y quedaría registrado aquí."*
 
 ## 4. El momento sorpresa — rol **Ejecutivo**
 

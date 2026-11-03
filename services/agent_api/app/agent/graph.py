@@ -46,6 +46,7 @@ class AgentState(TypedDict, total=False):
     answerable: bool
     answerability: dict | None
     last_order_facts: str  # kept across turns (not in PER_TURN_DEFAULTS) for follow-up questions
+    last_alternatives: list[dict]  # kept across turns too: an alternative can be accepted after a follow-up question
     draft_answer: str | None
     facts: str
     evaluation: dict | None
@@ -229,7 +230,7 @@ def build_graph(deps: Dependencies, checkpointer=None):
             return {"facts": facts, "usage": _usage(tracker, state)}
         evaluation = evaluate(draft, deps.read_erp())
         facts = evaluation_text(evaluation)
-        return {"facts": facts, "last_order_facts": facts, "evaluation": as_json(evaluation), "usage": _usage(tracker, state)}
+        return {"facts": facts, "last_order_facts": facts, "last_alternatives": [], "evaluation": as_json(evaluation), "usage": _usage(tracker, state)}
 
     def draft_policy(state: AgentState) -> dict:
         tracker = _tracker(state)
@@ -258,7 +259,8 @@ def build_graph(deps: Dependencies, checkpointer=None):
         evaluation = evaluate(draft, erp)
         alternatives = suggest(evaluation, erp) if not evaluation.ok else []
         facts = evaluation_text(evaluation) + ("\n\n" + alternatives_text(alternatives) if not evaluation.ok else "")
-        return {"evaluation": as_json(evaluation), "alternatives": [as_json(a) for a in alternatives], "facts": facts, "last_order_facts": facts}
+        computed = [as_json(a) for a in alternatives]
+        return {"evaluation": as_json(evaluation), "alternatives": computed, "last_alternatives": computed, "facts": facts, "last_order_facts": facts}
 
     def explain(state: AgentState) -> dict:
         tracker = _tracker(state)

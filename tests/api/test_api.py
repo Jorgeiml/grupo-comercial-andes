@@ -126,6 +126,21 @@ def test_executive_turns_a_valid_alternative_into_a_proposal(api, script, erp_db
     assert erp_db("SELECT * FROM sales_orders") == []  # still needs approval
 
 
+def test_alternative_can_be_accepted_after_a_follow_up_question(api, script):
+    script["classify"] = classified("special_order")
+    script["extract_order"] = order(customer="CL-002", sku="HG-001", quantity=40, warehouse="UIO")
+    script["explain_order"] = DraftAnswer(answer="Hay 25 disponibles en Quito.")
+    body = api.post("/chat", json={"message": "40 licuadoras"}, headers=EJECUTIVO).json()
+    combined = next(i for i, a in enumerate(body["alternatives"]) if a["kind"] == "partial_plus_substitute")
+
+    script["classify"] = classified("out_of_scope")  # any later turn resets the per-turn state
+    api.post("/chat", json={"message": "¿y el partido?", "thread_id": body["thread_id"]}, headers=EJECUTIVO)
+
+    response = api.post("/alternatives/accept", json={"thread_id": body["thread_id"], "index": combined}, headers=EJECUTIVO)
+    assert response.status_code == 200
+    assert [(l["sku"], l["quantity"]) for l in response.json()["proposal"]["content"]["lines"]] == [("HG-001", 25), ("HG-101", 15)]
+
+
 def test_invalid_alternative_cannot_become_a_proposal(api, script):
     script["classify"] = classified("special_order")
     script["extract_order"] = order(customer="CL-002", sku="HG-001", quantity=40, warehouse="UIO")

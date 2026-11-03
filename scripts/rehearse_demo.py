@@ -13,6 +13,7 @@ from pathlib import Path
 
 API = "http://localhost:8000"
 SAMPLES = Path(__file__).resolve().parents[1] / "data" / "samples"
+FOLLOW_UP = "¿Y por qué no se puede procesar el pedido?"
 QUESTION = ("Somos Supermercados La Pradera. Si pedimos 300 fardos de arroz para entregar en Guayaquil y pagamos a 60 días, "
             "¿qué descuento nos corresponde, cuánto sería el total y en cuántos días llega?")
 
@@ -56,6 +57,8 @@ if __name__ == "__main__":
     for i, a in enumerate(alternatives):
         ok = all(r["ok"] for r in a["evaluation"]["rules"])
         print(f"   alternativa {i}: {a['kind']:24} {'VÁLIDA' if ok else 'no válida'}  total {a['evaluation']['total']}")
+    _, follow_up = call("POST", "/chat", {"message": FOLLOW_UP, "thread_id": "demo-2"}, ejecutivo)
+    show("2b Pregunta de seguimiento (ejecutivo)", follow_up)
     combined = next(i for i, a in enumerate(alternatives) if a["kind"] == "partial_plus_substitute")
     status, accepted = call("POST", "/alternatives/accept", {"thread_id": "demo-2", "index": combined}, ejecutivo)
     proposal = accepted["proposal"]

@@ -164,7 +164,7 @@ def accept_alternative(body: AcceptAlternative, request: Request, identity: Iden
     the alternative stored in the conversation is never trusted as is."""
     agent: Agent = request.app.state.agent
     state = agent.result(body.thread_id)["state"]
-    alternatives = state.get("alternatives") or []
+    alternatives = state.get("last_alternatives") or []  # the conversation's last order, even after follow-up questions
     if body.index >= len(alternatives):
         raise HTTPException(status_code=404, detail="Esa alternativa no existe en la conversación")
     draft = OrderDraft.model_validate(alternatives[body.index]["evaluation"]["draft"])

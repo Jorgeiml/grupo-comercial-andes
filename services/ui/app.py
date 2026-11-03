@@ -88,7 +88,6 @@ COLORS = {"green": "#1E7A4F", "red": "#B42318", "orange": "#B54708", "blue": "#0
 ECUADOR = timezone(timedelta(hours=-5))  # Ecuador has no daylight saving time
 
 # Pages shown per role (the API still enforces every permission)
-SECTION_TITLES = {"conversation": "Conversación", "approvals": "Aprobaciones", "audit": "Auditoría", "costs": "Costos", "erp": "ERP (simulador)"}
 VISIBLE = {
     "cliente": ["conversation"],
     "ejecutivo": ["conversation", "approvals"],
@@ -193,20 +192,15 @@ with st.sidebar:
     role = st.selectbox("Ingresar como", list(ROLES), format_func=lambda r: f"{ROLES[r][1]} · {ROLES[r][2]}", key="role",
                         index=list(ROLES).index(requested) if requested in ROLES else 0)
     st.query_params["rol"] = role
-    st.caption("Secciones para tu rol: " + ", ".join(SECTION_TITLES[name] for name in VISIBLE[role])
-               + ("." if role in {"supervisor", "gerente"} else ". Cambia a Supervisora o Gerente para ver Aprobaciones, Auditoría, Costos y el ERP."))
     if st.session_state.get("token_role") != role:
         try:
             st.session_state.token, st.session_state.token_role = get_token(role), role
         except httpx.HTTPError as e:
             st.error(f"No se pudo obtener el token de demo: {e}")
             st.stop()
-    st.caption(":material/key: Tu rol viaja en un token firmado. La API decide los permisos; esta pantalla solo los muestra.")
     if st.button("Nueva conversación", icon=":material/add_comment:", use_container_width=True):
         st.session_state.messages, st.session_state.thread_id, st.session_state.last, st.session_state.order = [], f"ui-{uuid.uuid4().hex[:8]}", None, None
         st.rerun()
-    st.divider()
-    st.caption("La IA interpreta y propone · el software valida · una persona aprueba · un servicio separado ejecuta.")
 
 
 # ---------- page: conversation ----------
