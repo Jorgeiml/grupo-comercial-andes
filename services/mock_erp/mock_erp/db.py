@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 DB_PATH = os.getenv("ERP_DB_PATH", "/data/erp.db")
@@ -80,9 +81,38 @@ CREATE TABLE IF NOT EXISTS write_log (
     outcome TEXT NOT NULL,
     detail TEXT
 );
+
+-- Every change to stock, with the balance after it: how many there were, what was sold, what is left
+CREATE TABLE IF NOT EXISTS stock_movements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    sku TEXT NOT NULL REFERENCES products (sku),
+    warehouse TEXT NOT NULL REFERENCES warehouses (code),
+    kind TEXT NOT NULL CHECK (kind IN ('initial', 'sale', 'adjustment')),
+    quantity INTEGER NOT NULL,           -- signed: + in, - out
+    balance INTEGER NOT NULL CHECK (balance >= 0),
+    order_id INTEGER REFERENCES sales_orders (id),
+    external_ref TEXT
+);
+
+CREATE TRIGGER IF NOT EXISTS stock_movements_no_update BEFORE UPDATE ON stock_movements
+BEGIN SELECT RAISE(ABORT, 'stock_movements is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS stock_movements_no_delete BEFORE DELETE ON stock_movements
+BEGIN SELECT RAISE(ABORT, 'stock_movements is append-only'); END;
 """
 
-TABLES = ["write_log", "sales_order_lines", "sales_orders", "stock", "customers", "products", "warehouses"]
+TABLES = ["stock_movements", "write_log", "sales_order_lines", "sales_orders", "stock", "customers", "products", "warehouses"]
+
+
+def record_movement(conn, sku: str, warehouse: str, kind: str, quantity: int,
+                    order_id: int | None = None, external_ref: str | None = None) -> None:
+    """Call after the stock row was changed, in the same transaction: the balance is read back from it."""
+    balance = conn.execute("SELECT quantity FROM stock WHERE sku = ? AND warehouse = ?", (sku, warehouse)).fetchone()[0]
+    conn.execute(
+        "INSERT INTO stock_movements (at, sku, warehouse, kind, quantity, balance, order_id, external_ref)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (datetime.now(timezone.utc).isoformat(timespec="seconds"), sku, warehouse, kind, quantity, balance, order_id, external_ref),
+    )
 
 
 def to_cents(amount: float) -> int:
@@ -132,6 +162,7 @@ def _load_seed(conn: sqlite3.Connection) -> None:
             conn.execute("UPDATE products SET substitute_sku = ? WHERE sku = ?", (p["substitute_sku"], p["sku"]))
         for warehouse, quantity in p["stock"].items():
             conn.execute("INSERT INTO stock VALUES (?, ?, ?)", (p["sku"], warehouse, quantity))
+            record_movement(conn, p["sku"], warehouse, "initial", quantity)
 
     for c in load("customers.json"):
         conn.execute(

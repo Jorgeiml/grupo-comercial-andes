@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from .auth import require
-from .db import connect, init_db
+from .db import connect, init_db, record_movement
 from .orders import log_write
 
 router = APIRouter(prefix="/admin", tags=["Demo admin"])
@@ -19,11 +19,14 @@ class StockChange(BaseModel):
 @router.patch("/stock")
 def set_stock(body: StockChange, credential: str = Depends(require("admin"))):
     with connect() as conn:
-        updated = conn.execute(
-            "UPDATE stock SET quantity = ? WHERE sku = ? AND warehouse = ?", (body.quantity, body.sku, body.warehouse)
-        ).rowcount
-    if not updated:
-        raise HTTPException(status_code=404, detail=f"No stock row for {body.sku} in {body.warehouse}")
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT quantity FROM stock WHERE sku = ? AND warehouse = ?", (body.sku, body.warehouse)).fetchone()
+        if row is None:
+            conn.execute("ROLLBACK")
+            raise HTTPException(status_code=404, detail=f"No stock row for {body.sku} in {body.warehouse}")
+        conn.execute("UPDATE stock SET quantity = ? WHERE sku = ? AND warehouse = ?", (body.quantity, body.sku, body.warehouse))
+        record_movement(conn, body.sku, body.warehouse, "adjustment", body.quantity - row["quantity"])
+        conn.execute("COMMIT")
     log_write(credential, "stock_changed", detail=f"{body.sku}@{body.warehouse} = {body.quantity}")
     return body
 
@@ -32,6 +35,12 @@ def set_stock(body: StockChange, credential: str = Depends(require("admin"))):
 def reset(_: str = Depends(require("admin"))):
     init_db(reset=True)
     return {"status": "reset"}
+
+
+@router.get("/stock-movements")
+def stock_movements(sku: str, _: str = Depends(require("admin"))):
+    with connect() as conn:
+        return [dict(row) for row in conn.execute("SELECT * FROM stock_movements WHERE sku = ? ORDER BY id", (sku,))]
 
 
 @router.get("/write-log")

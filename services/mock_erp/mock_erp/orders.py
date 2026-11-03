@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 
-from .db import connect
+from .db import connect, record_movement
 
 
 class OrderRejected(Exception):
@@ -176,6 +176,7 @@ def _create_in_transaction(conn, order: OrderIn, digest: str, api_style: str) ->
             "UPDATE stock SET quantity = quantity - ? WHERE sku = ? AND warehouse = ?",
             (line.quantity, line.sku, line.warehouse),
         )
+        record_movement(conn, line.sku, line.warehouse, "sale", -line.quantity, order_id=order_id, external_ref=order.external_ref)
     conn.execute(
         "UPDATE customers SET credit_used_cents = credit_used_cents + ? WHERE code = ?", (total, order.customer_code)
     )

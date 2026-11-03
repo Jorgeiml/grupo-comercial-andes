@@ -633,6 +633,7 @@ WRITE_OUTCOMES = {  # write_log outcome -> (label, color)
     "forbidden": ("Intento sin permiso de escritura", "red"), "stock_changed": ("Cambio de stock (demo)", "orange"),
 }
 CREDENTIALS = {"read": "Agente (solo lectura)", "write": "Servicio de ejecución", "admin": "Administrador de la demo"}
+MOVEMENTS = {"initial": "Stock inicial", "sale": "Venta (pedido registrado)", "adjustment": "Ajuste de demo (simular otra venta)"}
 
 
 def erp_get(path: str):
@@ -670,7 +671,31 @@ def page_erp() -> None:
                  "Stock Quito": on_hand.get((p["ItemNumber"], "UIO"), 0), "Stock Guayaquil": on_hand.get((p["ItemNumber"], "GYE"), 0),
                  "Estado": "Activo" if p["ProductLifecycleStateId"] == "Active" else "Descontinuado",
                  "Sustituto homologado": p["SubstituteItemNumber"] or "—"} for p in products]
-        st.dataframe(styled(rows, {"Estado": {"Activo": "green", "Descontinuado": "red"}}), hide_index=True, use_container_width=True)
+        picked = st.dataframe(styled(rows, {"Estado": {"Activo": "green", "Descontinuado": "red"}}), hide_index=True,
+                              use_container_width=True, on_select="rerun", selection_mode="single-row", key="erp-products")
+        selected = picked.selection.rows
+        if not selected:
+            st.caption(":material/touch_app: Haz clic en un producto para ver su historial: cuántos había, qué se vendió y cuántos quedan.")
+        else:
+            product = rows[selected[0]]
+            try:
+                movements = erp_get(f"/admin/stock-movements?sku={product['Código']}")
+            except httpx.HTTPError as e:
+                st.error(f"El ERP no responde: {e}", icon=":material/cloud_off:")
+                movements = []
+            st.markdown(f"**Historial de {product['Código']} · {product['Producto']}** · cada movimiento queda registrado y no se puede borrar")
+            for warehouse, city in (("UIO", "Quito"), ("GYE", "Guayaquil")):
+                in_warehouse = [m for m in movements if m["warehouse"] == warehouse]
+                if not in_warehouse:
+                    continue
+                st.markdown(f":material/warehouse: **Bodega {city}**")
+                st.dataframe(
+                    [{"Cuándo (hora de Ecuador)": local_time(m["at"]), "Movimiento": MOVEMENTS.get(m["kind"], m["kind"]),
+                      "Cantidad": f"{m['quantity']:+d}", "Saldo": m["balance"],
+                      "Referencia": f"Pedido SO-{m['order_id']:06d} · {m['external_ref']}" if m["order_id"] else "—"}
+                     for m in reversed(in_warehouse)],
+                    hide_index=True, use_container_width=True,
+                )
     with customers_tab:
         rows = []
         for c in customers:
