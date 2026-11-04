@@ -4,6 +4,7 @@ import os
 import sqlite3
 from pathlib import Path
 
+import openai
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.errors import GraphRecursionError
 
@@ -24,6 +25,12 @@ SAFE_FAILURES = {
     GraphRecursionError: "La solicitud superó el máximo de pasos permitidos y se detuvo de forma segura.",
     LLMOutputError: "No obtuve una interpretación confiable de la solicitud. ¿Puedes reformularla con productos, cantidades y ciudad?",
 }
+# The AI provider is down, overloaded or unreachable (timeouts included): stop without answering. Approvals and the
+# ERP write do not use the LLM, so they keep working.
+LLM_UNAVAILABLE = ("El servicio de IA no responde en este momento, así que no doy una respuesta sin verificar. "
+                   "Intenta de nuevo en unos minutos o un ejecutivo de cuenta te atiende directamente.")
+for _provider_error in (openai.APIConnectionError, openai.RateLimitError, openai.InternalServerError):
+    SAFE_FAILURES[_provider_error] = LLM_UNAVAILABLE
 
 
 class Agent:

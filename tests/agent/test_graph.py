@@ -1,5 +1,8 @@
 """Agent routing and controls, with a scripted LLM: deterministic, free, and against the in-process ERP."""
 
+import httpx
+import openai
+
 from app.agent.graph import Dependencies
 from app.agent.runner import Agent
 from app.agent.schemas import Answerability, DraftAnswer, QueryPlan
@@ -130,6 +133,26 @@ def test_erp_outage_stops_safely(erp_client, tmp_path, script):
     result = agent.send("t1", "300 fardos", EJECUTIVO)
     assert result["response_kind"] == "stopped"
     assert "no doy una respuesta sin verificar" in result["response"]
+
+
+def test_ai_provider_outage_stops_safely_and_approvals_keep_working(agent, script, erp_db):
+    script["classify"] = classified("special_order")
+    script["extract_order"] = order(days=60)
+    pending = agent.send("t1", "La Pradera: 300 fardos de arroz a Guayaquil", EJECUTIVO)["pending_approval"]
+
+    def provider_down(messages):
+        raise openai.APIConnectionError(request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"))
+
+    script["classify"] = provider_down
+    result = agent.send("t2", "¿Cuánto cuesta el envío a Cuenca?", CLIENTE)
+    assert result["response_kind"] == "stopped"
+    assert "El servicio de IA no responde" in result["response"]
+    assert any(row["action"] == "agent_stopped" and row["result"] == "APIConnectionError" for row in audit_trail())
+
+    # Approving and writing to the ERP do not use the LLM: an approved order is still registered
+    decide(pending["proposal_id"], GERENTE, Decision.APPROVE, pending["content_hash"])
+    assert agent.resume("t1", GERENTE)["response_kind"] == "executed"
+    assert len(erp_db("SELECT * FROM sales_orders")) == 1
 
 
 def test_follow_up_question_uses_the_last_order_of_the_conversation(agent, script):
