@@ -1,12 +1,12 @@
 """agent-api: authorization comes from the token, and an approval through the API ends in one ERP order."""
 
 import pytest
-from app.agent.schemas import DraftAnswer
+from app.agent.schemas import Answerability, DraftAnswer, QueryPlan
 from app.auth.tokens import issue_token
 from app.main import app
 from fastapi.testclient import TestClient
 
-from conftest import classified, order
+from conftest import CHUNKS, classified, order
 
 
 @pytest.fixture
@@ -139,6 +139,24 @@ def test_alternative_can_be_accepted_after_a_follow_up_question(api, script):
     response = api.post("/alternatives/accept", json={"thread_id": body["thread_id"], "index": combined}, headers=EJECUTIVO)
     assert response.status_code == 200
     assert [(l["sku"], l["quantity"]) for l in response.json()["proposal"]["content"]["lines"]] == [("HG-001", 25), ("HG-101", 15)]
+
+
+def test_alternative_survives_a_follow_up_that_re_reads_the_order(api, script):
+    # Seen live: the planner sometimes decides the follow-up needs order data and re-reads the same order from the ERP
+    script["classify"] = classified("special_order")
+    script["extract_order"] = order(customer="CL-002", sku="HG-001", quantity=40, warehouse="UIO")
+    script["explain_order"] = DraftAnswer(answer="Hay 25 disponibles en Quito.")
+    body = api.post("/chat", json={"message": "40 licuadoras"}, headers=EJECUTIVO).json()
+    combined = next(i for i, a in enumerate(body["alternatives"]) if a["kind"] == "partial_plus_substitute")
+
+    script["classify"] = classified("policy_question")
+    script["plan"] = QueryPlan(subqueries=["falta de stock"], needs_order_data=True)
+    script["check_answerable"] = Answerability(answerable=True, supporting_citations=[CHUNKS[1].citation], missing=None)
+    script["draft_answer"] = DraftAnswer(answer=f"Pediste 40 y hay 25 en Quito [{CHUNKS[1].citation}].")
+    api.post("/chat", json={"message": "¿Y por qué no se puede?", "thread_id": body["thread_id"]}, headers=EJECUTIVO)
+
+    response = api.post("/alternatives/accept", json={"thread_id": body["thread_id"], "index": combined}, headers=EJECUTIVO)
+    assert response.status_code == 200
 
 
 def test_correction_request_reaches_the_executive_and_links_the_new_version(api, script, erp_db):

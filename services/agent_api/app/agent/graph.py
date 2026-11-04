@@ -230,7 +230,9 @@ def build_graph(deps: Dependencies, checkpointer=None):
             return {"facts": facts, "usage": _usage(tracker, state)}
         evaluation = evaluate(draft, deps.read_erp())
         facts = evaluation_text(evaluation)
-        return {"facts": facts, "last_order_facts": facts, "last_alternatives": [], "evaluation": as_json(evaluation), "usage": _usage(tracker, state)}
+        # last_alternatives is left as is: a policy question computes no alternatives, so it must not erase the order's
+        # (the follow-up "¿por qué no se puede?" may re-read the same order; its alternatives stay acceptable)
+        return {"facts": facts, "last_order_facts": facts, "evaluation": as_json(evaluation), "usage": _usage(tracker, state)}
 
     def draft_policy(state: AgentState) -> dict:
         tracker = _tracker(state)

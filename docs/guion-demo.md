@@ -1,17 +1,18 @@
 # Guion de la demo (7 min 30 s; 6 min sin los pasos opcionales)
 
-Una sola historia, un cliente: **Supermercados La Pradera**. Seguir los pasos **al pie de la letra** (copiar y pegar los textos): así cada respuesta sale de la caché idéntica a la del ensayo.
+Una sola historia, un cliente: **Supermercados La Pradera**. La IA responde **en vivo**: la redacción cambia un poco en cada corrida, pero las cifras son siempre las mismas, porque las calcula el sistema. Copiar y pegar los textos preparados igual ahorra tiempo.
 
 ## Antes de empezar (5 minutos antes)
 
 ```bash
 docker compose up -d
+powershell -ExecutionPolicy Bypass -File scripts/demo_mode.ps1 vivo
 powershell -ExecutionPolicy Bypass -File scripts/reset_demo.ps1
 ```
 
-Abrir **http://localhost:8501**. Verificar que el `.env` tenga `LLM_CACHE_ENABLED=true`.
+Abrir **http://localhost:8501**. El primer comando de modo debe decir *"Modo EN VIVO (cache=false)"*.
 
-> **Plan B** si la interfaz falla: `python scripts/rehearse_demo.py` (misma historia por consola). **Plan C:** el video.
+> **Plan B** si la red o OpenAI van lentos: `powershell -ExecutionPolicy Bypass -File scripts/demo_mode.ps1 respaldo` (unos 20 s). Las preguntas ensayadas salen de la caché, al instante y sin costo; la pantalla lo indica con *"Respuesta desde la caché"*. Si la interfaz falla: `python scripts/rehearse_demo.py` (misma historia por consola). **Plan C:** el video.
 
 ---
 
@@ -23,7 +24,7 @@ Pegar en el chat:
 
 **Debe aparecer:** 9 % · **$5.050,50** · 1 día hábil · pago a 60 días permitido, con citas `[POL-…]`.
 **Mostrar:** abrir **"Evidencia: de dónde sale cada dato"** → precio y stock leídos del ERP, el cálculo 5 % + 4 % = 9 %, y los fragmentos de política.
-**Decir:** *"Las cifras no las calcula la IA: las calcula el motor de reglas con datos del ERP, y un verificador bloquea cualquier número que no esté respaldado."*
+**Decir:** *"Fíjense que se demora unos segundos y aquí abajo ven lo que costó: está pensando en vivo, no es una respuesta guardada. Y las cifras no las calcula la IA: las calcula el motor de reglas con datos del ERP, y un verificador bloquea cualquier número que no esté respaldado."*
 
 ## 2. Pedido especial por PDF — rol **Ejecutivo de cuenta · Luis**
 
@@ -77,6 +78,6 @@ Ejecutivo → nueva conversación → *"Comercial Don Lucho: 10 fardos de azúca
 
 ## Notas
 
-- **Por qué sale idéntico:** el reinicio deja el ERP y los números de propuesta en el mismo estado, y la caché devuelve la misma respuesta para la misma pregunta con los mismos datos (la pantalla lo indica: *"Respuesta desde la caché"*). Si se escribe algo distinto, el agente responde en vivo con el LLM: funciona igual, solo que no es idéntico al ensayo.
-- **Recargar la caché** (por ejemplo, si se cambian los documentos): `docker compose exec agent-api rm /data/llm_cache.db`, reiniciar la demo y volver a ensayar con `python scripts/rehearse_demo.py`.
+- **En vivo, qué cambia y qué no:** el reinicio deja el ERP y los números de propuesta en el mismo estado, así que las cifras, los números (PROP-000001, SO-000001) y las decisiones son siempre iguales. Lo que cambia es la redacción de la IA. En 3 corridas en vivo seguidas salieron las mismas cifras, ≈ 30 s de respuestas y menos de 1 centavo por demo completa.
+- **Modo respaldo:** la caché solo responde las preguntas exactas que ya se ensayaron. Para recargarla (por ejemplo, si cambian los documentos): `docker compose exec agent-api rm /data/llm_cache.db`, pasar a modo respaldo, reiniciar la demo y ensayar con `python scripts/rehearse_demo.py`.
 - La verificación a mano de cada cifra está en [verificacion-demo.md](verificacion-demo.md).
